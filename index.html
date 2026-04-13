@@ -187,6 +187,12 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 .ai-run-btn:disabled{background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:not-allowed;transform:none}
 .ai-body{font-size:12px;line-height:1.8;color:var(--text);white-space:pre-wrap;min-height:32px}
 .ai-disclaimer{font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.apikey-row{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.apikey-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:#fff;font-size:12px;font-family:'Zen Kaku Gothic New',sans-serif}
+.apikey-input:focus{outline:none;border-color:var(--green)}
+.apikey-save-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap;transition:all .2s}
+.apikey-save-btn:hover{background:var(--green);border-color:var(--green);color:#fff}
+.apikey-status{font-size:10px;margin-top:2px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .ai-body.loading{animation:pulse 1.5s ease-in-out infinite;color:var(--muted);font-style:italic}
 .advice-title{font-size:14px;font-weight:900;color:var(--blue);margin-bottom:10px}
@@ -266,11 +272,11 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 
     <div id="ai-advice-card" class="ai-advice-card" style="display:none">
       <div class="ai-advice-header">
-        <div class="ai-advice-title">🤖 AI構築アドバイス</div>
-        <button class="ai-run-btn" id="ai-run-btn" onclick="runAiAdvice()">やっくん構築を検索して分析</button>
+        <div class="ai-advice-title">📊 構築メタ分析</div>
+        <span id="meta-status" style="font-size:10px;color:var(--muted)">データ未読込</span>
       </div>
-      <div class="ai-body" id="ai-body">相手チームを入力後にボタンを押すと、やっくんなどの構築サイトを検索し、実際の使用率・型情報をもとにアドバイスを生成します。</div>
-      <div class="ai-disclaimer" id="ai-disclaimer">※ Claude APIのウェブ検索を使用。検索時に通信が発生します。</div>
+      <div class="ai-body" id="ai-body">party-meta.json が見つかりません。同フォルダに配置するとここにメタ分析が表示されます。</div>
+      <div class="ai-disclaimer">※ party-meta.json（同フォルダ設置）から使用率・型情報を読み込んで分析します。APIキー不要・完全オフライン動作。</div>
     </div>
 
     <div id="selected-memo-card" class="advice-card" style="display:none;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
@@ -1184,74 +1190,81 @@ function clearAll(){
   document.getElementById('result-area').style.display='none';
   document.getElementById('detail-card').style.display='none';
   document.getElementById('ai-advice-card').style.display='none';
-  document.getElementById('ai-body').textContent='相手チームを入力後にボタンを押すと、やっくんなどの構築サイトを検索し、実際の使用率・型情報をもとにアドバイスを生成します。';
+  document.getElementById('ai-body').textContent='party-meta.json が見つかりません。同フォルダに配置するとここにメタ分析が表示されます。';
   document.getElementById('ai-body').className='ai-body';
-  document.getElementById('ai-run-btn').disabled=false;
   latestSuggestedNames=[];
   showToast('クリアしました！');
 }
 
-// ── AI構築アドバイス（Claude API + web_search）──────────────────
-async function runAiAdvice(){
-  const opp=[], my=[];
-  for(let i=1;i<=6;i++){
-    const v=(document.getElementById('opp'+i).value||'').trim();
-    if(DB[v]) opp.push(v);
-    const m=(document.getElementById('my'+i).value||'').trim();
-    if(DB[m]) my.push(m);
-  }
-  if(!opp.length){ showToast('相手チームを入力してください','error'); return; }
+// ── party-meta.json 読込 & メタ分析 ──────────────────────────────
+let partyMeta = null; // { updated, pokemon_stats: { name: {usage,common_moves,common_items,common_nature,counters} } }
 
-  const btn=document.getElementById('ai-run-btn');
+function loadPartyMeta(){
+  fetch('./party-meta.json',{cache:'no-cache'})
+    .then(r=>r.ok?r.json():null)
+    .then(data=>{
+      if(data && data.pokemon_stats){
+        partyMeta=data;
+        const count=Object.keys(data.pokemon_stats).length;
+        const el=document.getElementById('meta-status');
+        if(el) el.textContent=`✓ ${count}体のメタデータ読込済 (${data.updated||'?'})`;
+        if(el) el.style.color='var(--green)';
+      }
+    })
+    .catch(()=>{});
+}
+
+function buildMetaAdvice(my, opp){
   const body=document.getElementById('ai-body');
-  btn.disabled=true;
-  body.className='ai-body loading';
-  body.textContent='やっくん・構築サイトを検索中...';
-
-  const myStr=my.length?`自分のパーティ: ${my.join('、')}\n`:'';
-  const oppStr=`相手のパーティ: ${opp.join('、')}`;
-  const prompt=`あなたはポケモンチャンピオンズの対戦アドバイザーです。
-${myStr}${oppStr}
-
-以下の手順で分析してください：
-1. やっくん(yakkun.com/bbs/party/)や関連サイトを検索して、相手パーティのポケモン（特に主要な3体）の実際の使用率や型情報を調べる
-2. 相手の各ポケモンの代表的な型（性格・技構成・持ち物）を要約する
-3. それを踏まえて自分側の選出アドバイスを出す
-
-出力フォーマット：
-■ 相手の型予測
-（各ポケモンの代表的な型と注意点）
-
-■ 選出アドバイス
-（上記の型を踏まえた選出・立ち回り提案）
-
-■ 注意ポイント
-（特に警戒すべき技・コンボなど）
-
-日本語で簡潔に出力してください。`;
-
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1200,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    const data=await res.json();
-    if(data.error){ throw new Error(data.error.message); }
-    const text=data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
-    body.className='ai-body';
-    body.textContent=text||'結果を取得できませんでした。';
-  }catch(e){
-    body.className='ai-body';
-    body.textContent='エラーが発生しました: '+e.message;
-    showToast('AI分析に失敗しました','error');
+  if(!body) return;
+  if(!partyMeta){
+    body.textContent='party-meta.json が見つかりません。同フォルダに配置するとここに使用率・型情報ベースのアドバイスが表示されます。';
+    return;
   }
-  btn.disabled=false;
+  const stats=partyMeta.pokemon_stats||{};
+  const lines=[];
+
+  lines.push('■ 相手の型予測（メタデータ基準）');
+  opp.forEach(name=>{
+    const s=stats[name];
+    if(!s){ lines.push(`・${name}：データなし`); return; }
+    const usagePct=s.usage_pct!=null?` 使用率${s.usage_pct}%`:'';
+    lines.push(`・${name}${usagePct}`);
+    if((s.common_nature||'')!=='') lines.push(`  性格: ${s.common_nature}`);
+    if(s.common_moves&&s.common_moves.length) lines.push(`  技: ${s.common_moves.slice(0,4).join(' / ')}`);
+    if(s.common_items&&s.common_items.length) lines.push(`  持物: ${s.common_items.slice(0,2).join(' / ')}`);
+    if(s.notes) lines.push(`  注意: ${s.notes}`);
+  });
+
+  lines.push('');
+  lines.push('■ 対策ポケモン（メタデータより）');
+  const counterScore={};
+  opp.forEach(name=>{
+    const s=stats[name];
+    if(!s||!s.counters) return;
+    s.counters.forEach(c=>{ counterScore[c]=(counterScore[c]||0)+1; });
+  });
+  const topCounters=Object.entries(counterScore).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(topCounters.length){
+    topCounters.forEach(([name,cnt])=>{
+      const inMy=my.includes(name);
+      lines.push(`・${name}（${cnt}体に有効）${inMy?' ← 自分のパーティにあり ✓':''}`);
+    });
+  } else {
+    lines.push('・カウンターデータなし（party-meta.jsonに counters フィールドを追加してください）');
+  }
+
+  lines.push('');
+  lines.push('■ 相手パーティの使用率上位');
+  const sorted=opp
+    .map(n=>({name:n, usage:stats[n]?.usage||0}))
+    .sort((a,b)=>b.usage-a.usage);
+  sorted.forEach(x=>{
+    const bar='█'.repeat(Math.min(10,Math.round((x.usage/Math.max(...sorted.map(s=>s.usage)||[1]))*10)));
+    lines.push(`・${x.name}  ${bar} ${x.usage?x.usage+'件':'データなし'}`);
+  });
+
+  body.textContent=lines.join('\n');
 }
 
 function analyze() {
@@ -1265,7 +1278,10 @@ function analyze() {
 
   document.getElementById('result-area').style.display='block';
   buildAdvancedAdvice(my, opp);
-  if(my.length && opp.length) document.getElementById('ai-advice-card').style.display='block';
+  if(my.length && opp.length){
+    document.getElementById('ai-advice-card').style.display='block';
+    buildMetaAdvice(my.map(x=>x.name), opp.map(x=>x.name));
+  }
 
   if(!my.length || !opp.length){
     document.getElementById('matrix-container').innerHTML = '<div style="font-size:12px;color:var(--muted)">自分と相手のポケモンを1体以上入力してください。</div>';
@@ -1372,6 +1388,7 @@ function loadFromSlot(n){
 }
 
 // ── Boot ───────────────────────────────────────────────────────
+loadPartyMeta();
 fetch('pokemon-db.json')
   .then(r=>{if(!r.ok)return fetch('pokemon-db-correct.json');return r;})
   .then(r=>r.json())
