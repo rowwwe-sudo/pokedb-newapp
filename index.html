@@ -233,6 +233,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
     <div id="team-advice-card" class="advice-card" style="display:none">
       <div class="advice-title">おすすめ選出 / 型予測 / 苦手警告</div>
       <div id="advice-picks" class="pick-grid"></div>
+      <div style="margin-top:2px;margin-bottom:6px"><button class="action-btn" style="padding:8px 12px;font-size:12px" onclick="applySuggestedSelection()">おすすめ3体を選出メモに反映</button></div>
       <div class="advice-section">
         <div class="advice-subtitle">選出理由</div>
         <div id="advice-reasons" class="advice-list"></div>
@@ -249,8 +250,12 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 
     
     <div id="team-advice-card" class="detail-card" style="display:block;margin-top:0;margin-bottom:16px;border-color:var(--blue)">
-      <div style="font-size:13px;font-weight:900;color:var(--blue);margin-bottom:10px">おすすめ選出</div>
       <div id="team-advice-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap"></div>
+    </div>
+
+    <div id="selected-memo-card" class="advice-card" style="display:block;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
+      <div class="advice-title" style="color:var(--yellow)">ワンタップ選出メモ</div>
+      <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。</div>
     </div>
 
     <div id="detail-card" class="detail-card">
@@ -1011,6 +1016,7 @@ function buildAdvancedAdvice(my, opp){
   }).sort((a,b)=> b.total - a.total);
 
   const top = scores.slice(0,3);
+  latestSuggestedNames = top.map(p => p.name);
   top.forEach((p, idx) => {
     const hint = getMetaHint(p.name);
     const rolesHtml = (hint.roles || []).slice(0,3).map(r => `<span class="role-chip">${r}</span>`).join('');
@@ -1029,6 +1035,8 @@ function buildAdvancedAdvice(my, opp){
   topPressure.forEach(p => {
     reasonsEl.innerHTML += `<div class="advice-line">・相手に <strong>${p.type}</strong> が ${p.weak}/${opp.length} 体へ通りやすいです。${p.type} 打点を持つ駒を優先すると組み立てやすいです。</div>`;
   });
+
+  renderAiBasis(my, opp);
 
   const roleLines = [];
   opp.forEach(o => {
@@ -1059,6 +1067,34 @@ function buildAdvancedAdvice(my, opp){
         <div class="pressure-bar-wrap"><div class="pressure-bar" style="width:${p.ratio}%"></div></div>
       </div>`;
   });
+}
+
+
+let latestSuggestedNames = [];
+
+function applySuggestedSelection(){
+  const memo = document.getElementById('selected-memo-body');
+  if(!memo) return;
+  if(!latestSuggestedNames || !latestSuggestedNames.length){
+    memo.textContent = 'おすすめ選出がまだありません。先に「分析開始」を押してください。';
+    return;
+  }
+  memo.textContent =
+    '選出候補\n' +
+    '1. ' + latestSuggestedNames[0] + '\n' +
+    '2. ' + (latestSuggestedNames[1] || '---') + '\n' +
+    '3. ' + (latestSuggestedNames[2] || '---') + '\n\n' +
+    '※ 対戦前の自分用メモとして使えます。';
+}
+
+function renderAiBasis(my, opp){
+  const reasonsEl = document.getElementById('advice-reasons');
+  if(!reasonsEl) return;
+  reasonsEl.innerHTML += `
+    <div class="advice-line">
+      <span class="role-chip">AI判断基準</span>
+      この選出AIは <strong>外部サイトをリアルタイム参照していません</strong>。      現在のページ内に入っている <strong>タイプ相性</strong>、      一部ポケモンの <strong>よくある役割ラベル</strong>（積み・先制技・ステロ・崩し など）、      そして <strong>相手6体に通りやすい打点</strong> を見て順位付けしています。
+    </div>`;
 }
 
 // ── Analyze ────────────────────────────────────────────────────
