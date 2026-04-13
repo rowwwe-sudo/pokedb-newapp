@@ -178,7 +178,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
   font-weight:700;
 }
 
-.advice-card{display:block;background:var(--surface2);border-radius:12px;padding:16px;border:1px solid var(--blue);margin-bottom:16px}
+.advice-card{display:block;background:var(--surface2);border-radius:12px;padding:16px;border:1px solid var(--border);margin-bottom:16px}
 .advice-title{font-size:14px;font-weight:900;color:var(--blue);margin-bottom:10px}
 .pick-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
 .pick-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px}
@@ -199,13 +199,16 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 @media(min-width:700px){.pick-grid{grid-template-columns:1fr 1fr 1fr}.pressure-grid{grid-template-columns:1fr 1fr}}
 
 
-#selected-memo-card:empty{display:none}
+
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="header-title">POKÉMON CHAMPIONS</div>
+  <div class="header-actions">
+    <button class="action-btn" onclick="clearAll()" style="padding:6px 12px;font-size:12px">🗑 クリア</button>
+  </div>
   </div>
 
 <div class="container">
@@ -250,14 +253,11 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
       </div>
     </div>
 
-    
-    <div id="team-advice-card" class="detail-card" style="display:block;margin-top:0;margin-bottom:16px;border-color:var(--blue)">
-      <div id="team-advice-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap"></div>
-    </div>
 
-    <div id="selected-memo-card" class="advice-card" style="display:none;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
+
+    <div id="selected-memo-card" class="advice-card" style="margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
       <div class="advice-title" style="color:var(--yellow)">ワンタップ選出メモ</div>
-      <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。</div>
+      <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。「おすすめ3体を選出メモに反映」を押すと記録されます。</div>
     </div>
 
     <div id="detail-card" class="detail-card">
@@ -1101,8 +1101,6 @@ function buildAdvancedAdvice(my, opp){
 let latestSuggestedNames = [];
 
 function applySuggestedSelection(){
-  const memoCard = document.getElementById('selected-memo-card');
-  if(memoCard) memoCard.style.display = 'block';
   const memo = document.getElementById('selected-memo-body');
   if(!memo) return;
   if(!latestSuggestedNames || !latestSuggestedNames.length){
@@ -1115,6 +1113,7 @@ function applySuggestedSelection(){
     '2. ' + (latestSuggestedNames[1] || '---') + '\n' +
     '3. ' + (latestSuggestedNames[2] || '---') + '\n\n' +
     '※ 対戦前の自分用メモとして使えます。';
+  document.getElementById('selected-memo-card').scrollIntoView({behavior:'smooth'});
 }
 
 function renderAiBasis(my, opp){
@@ -1157,80 +1156,6 @@ function scoreMatchup(myName, oppName){
   return score;
 }
 
-function buildAdvice(my, opp){
-  var adviceEl = document.getElementById('team-advice-body');
-  if(!adviceEl) return;
-
-  if(!my.length || !opp.length){
-    adviceEl.textContent = '自分と相手のポケモンを1体以上入力してください。';
-    return;
-  }
-
-  var scores = [];
-  for(var i=0;i<my.length;i++){
-    var total = 0;
-    for(var j=0;j<opp.length;j++){
-      total += scoreMatchup(my[i].name, opp[j].name);
-    }
-    scores.push({name: my[i].name, score: total});
-  }
-  scores.sort(function(a,b){ return b.score - a.score; });
-
-  var top = scores.slice(0,3);
-  var oppNames = opp.map(function(x){ return x.name; });
-
-  var reasons = [];
-  var electricCount = 0;
-  var dragonCount = 0;
-  var fairyCount = 0;
-  var fireCount = 0;
-
-  for(var k=0;k<opp.length;k++){
-    var tps = safeTypesOf(opp[k].name);
-    if(tps.indexOf('でんき') !== -1) electricCount++;
-    if(tps.indexOf('ドラゴン') !== -1) dragonCount++;
-    if(tps.indexOf('フェアリー') !== -1) fairyCount++;
-    if(tps.indexOf('ほのお') !== -1) fireCount++;
-  }
-
-  if(electricCount >= 2) reasons.push('・相手にでんきタイプが多く、じめん打点が通りやすいです。');
-  if(dragonCount >= 2) reasons.push('・相手にドラゴンが多く、こおり・フェアリーの打点を意識した選出が有効です。');
-  if(fairyCount >= 2) reasons.push('・相手にフェアリーが多く、はがね・どく打点を持つ駒が安定します。');
-  if(fireCount >= 2) reasons.push('・相手にほのおが多く、みず・じめんで圧をかけやすいです。');
-
-  if(!reasons.length){
-    reasons.push('・相性表の上位3体を基準に、通りのよい打点を優先した安定選出です。');
-  }
-
-  var lines = [];
-  lines.push('おすすめ3体');
-  for(var n=0;n<top.length;n++){
-    lines.push((n+1) + '位: ' + top[n].name + '  (スコア ' + top[n].score.toFixed(1) + ')');
-  }
-  lines.push('');
-  lines.push('理由');
-  for(var r=0;r<reasons.length;r++) lines.push(reasons[r]);
-
-  if(top.length){
-    lines.push('');
-    lines.push('注目対面');
-    for(var a=0;a<top.length;a++){
-      var bestOpp = '';
-      var bestScore = -999;
-      for(var b=0;b<oppNames.length;b++){
-        var s = scoreMatchup(top[a].name, oppNames[b]);
-        if(s > bestScore){
-          bestScore = s;
-          bestOpp = oppNames[b];
-        }
-      }
-      if(bestOpp) lines.push('・' + top[a].name + ' → ' + bestOpp + ' に強め');
-    }
-  }
-
-  adviceEl.textContent = lines.join('\n');
-}
-
 
 function analyze() {
   const my=[], opp=[];
@@ -1243,6 +1168,7 @@ function analyze() {
 
   document.getElementById('result-area').style.display='block';
   buildAdvancedAdvice(my, opp);
+  setTimeout(()=>document.getElementById('team-advice-card').scrollIntoView({behavior:'smooth',block:'start'}),100);
 
   if(!my.length || !opp.length){
     document.getElementById('matrix-container').innerHTML = '<div style="font-size:12px;color:var(--muted)">自分と相手のポケモンを1体以上入力してください。</div>';
@@ -1264,7 +1190,21 @@ function analyze() {
   document.getElementById('matrix-container').innerHTML=html;
 }
 
-// ── Save / Load ────────────────────────────────────────────────
+function clearAll(){
+  for(let i=1;i<=6;i++){
+    const m=document.getElementById('my'+i); if(m) m.value='';
+    const o=document.getElementById('opp'+i); if(o) o.value='';
+    myConfig[i]=mkCfg();
+    updateCfgBtn(i);
+  }
+  document.getElementById('result-area').style.display='none';
+  document.getElementById('detail-card').style.display='none';
+  document.getElementById('selected-memo-body').textContent='まだ選出していません。「おすすめ3体を選出メモに反映」を押すと記録されます。';
+  latestSuggestedNames=[];
+  showToast('クリアしました！');
+}
+
+
 function quickSaveTeam(){
   const t=[];
   for(let i=1;i<=6;i++) t.push(document.getElementById('opp'+i).value);
