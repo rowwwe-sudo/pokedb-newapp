@@ -198,6 +198,8 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 .pressure-bar{height:100%;background:linear-gradient(90deg,var(--blue),var(--red));border-radius:999px}
 @media(min-width:700px){.pick-grid{grid-template-columns:1fr 1fr 1fr}.pressure-grid{grid-template-columns:1fr 1fr}}
 
+
+#selected-memo-card:empty{display:none}
 </style>
 </head>
 <body>
@@ -253,7 +255,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
       <div id="team-advice-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap"></div>
     </div>
 
-    <div id="selected-memo-card" class="advice-card" style="display:block;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
+    <div id="selected-memo-card" class="advice-card" style="display:none;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
       <div class="advice-title" style="color:var(--yellow)">ワンタップ選出メモ</div>
       <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。</div>
     </div>
@@ -878,9 +880,18 @@ function renderOppSide(p, name) {
 
 const META_HINTS = {
   'カイリュー': {roles:['積み','先制技','終盤エース'], notes:['りゅうのまい展開が多い','しんそく圏内に入れられやすい']},
-  'サーフゴー': {roles:['特殊アタッカー','崩し','補助対策'], notes:['ゴールドラッシュ系の高火力を警戒','変化技対策として強め']},
+  'サーフゴー': {roles:['特殊アタッカー','崩し','補助対策'], notes:['高火力特殊打点を警戒','変化技対策として強め']},
   'ガブリアス': {roles:['物理アタッカー','スカーフ候補','ステロ'], notes:['高速物理やステロ展開が多い']},
   'ミミッキュ': {roles:['ストッパー','積み','先制圏調整'], notes:['行動保証からの切り返しが強い']},
+  'ハッサム': {roles:['先制技','対面性能','物理'], notes:['バレットパンチ圏内に入れられやすい']},
+  'ゲンガー': {roles:['高速特殊','崩し'], notes:['高火力特殊と状態異常展開を警戒']},
+  'バンギラス': {roles:['特殊受け','物理崩し'], notes:['高耐久からの打ち合い性能が高い']},
+  'カバルドン': {roles:['ステロ','物理受け','起点作成'], notes:['あくび＋起点作成の展開が多い']},
+  'ドドゲザン': {roles:['先制圏','終盤エース','物理崩し'], notes:['終盤のしめ性能が高い']},
+  'ドラパルト': {roles:['高速','物理/特殊両対応','崩し'], notes:['型の幅が広く、初手安定感が高い']},
+  'マスカーニャ': {roles:['高速','とんぼがえり','崩し'], notes:['対面操作からの展開が多い']},
+  'アシレーヌ': {roles:['特殊','フェアリー打点','崩し'], notes:['フェアリー特殊打点が一貫しやすい']},
+  'ハガネール': {roles:['物理受け','ステロ'], notes:['物理方面で受け性能が高い']},
   'メガエルレイド': {roles:['高速物理','積みエース'], notes:['つるぎのまい型を警戒']},
   'メガアブソル': {roles:['高速物理','崩し'], notes:['高火力の悪打点が一貫しやすい']},
   'メガカイリュー': {roles:['積み','先制技','終盤エース'], notes:['りゅうのまい＋先制技想定が無難']},
@@ -895,7 +906,24 @@ const META_HINTS = {
   'メガクチート': {roles:['超火力物理','対面破壊'], notes:['等倍でも受けづらいことが多い']},
   'メガマフォクシー': {roles:['特殊エース','崩し'], notes:['特殊炎打点が強力']},
   'メガエンブオー': {roles:['物理崩し','高火力'], notes:['反動高火力や範囲技に注意']},
-  'メガブリガロン': {roles:['耐久','物理受け'], notes:['受け性能と反撃を両立しやすい']}
+  'メガブリガロン': {roles:['耐久','物理受け'], notes:['受け性能と反撃を両立しやすい']},
+  'メガハッサム': {roles:['先制技','積み','受け崩し'], notes:['バレットパンチと積み展開を警戒']},
+  'メガバンギラス': {roles:['積み','高耐久','物理崩し'], notes:['耐久からの抜き性能が高い']},
+  'メガサーナイト': {roles:['特殊エース','フェアリー打点'], notes:['高火力のフェアリー特殊打点が通りやすい']},
+  'メガギャラドス': {roles:['積み','物理エース'], notes:['りゅうのまい想定が多い']},
+  'メガジュペッタ': {roles:['トリックルーム対策','崩し'], notes:['ゴースト打点と補助を警戒']},
+  'メガヘラクロス': {roles:['超火力物理','対面破壊'], notes:['受け崩し性能がかなり高い']},
+  'メガライボルト': {roles:['高速特殊','ボルトチェンジ'], notes:['対面操作からの展開が多い']},
+  'メガデンリュウ': {roles:['特殊エース','耐久'], notes:['電気・竜の一貫を作りやすい']},
+  'メガガブリアス': {roles:['高火力物理','崩し'], notes:['受け出し先に高負荷をかけやすい']},
+  'メガアブソル': {roles:['高速物理','崩し'], notes:['マジックミラー込みで補助も返しやすい']},
+  'メガペンドラー': {roles:['高速物理','どく打点'], notes:['高速物理から崩しを狙ってきやすい']},
+  'メガシャンデラ': {roles:['特殊エース','炎/霊打点'], notes:['受けにくい特殊範囲を持ちやすい']},
+  'メガゴルーグ': {roles:['物理崩し','地面打点'], notes:['地面の一貫を押しつけやすい']},
+  'メガフラエッテ': {roles:['特殊','フェアリー打点'], notes:['ドラゴンへの圧力が強い']},
+  'メガニャオニクス': {roles:['補助','特殊'], notes:['補助展開とサポートを警戒']},
+  'メガルチャブル': {roles:['高速物理','抜き'], notes:['高い対面性能から抜きを狙いやすい']},
+  'メガジガルデ': {roles:['耐久','積み'], notes:['耐久から詰めを狙う展開に注意']}
 };
 
 const ROLE_WEIGHTS = {
@@ -1073,6 +1101,8 @@ function buildAdvancedAdvice(my, opp){
 let latestSuggestedNames = [];
 
 function applySuggestedSelection(){
+  const memoCard = document.getElementById('selected-memo-card');
+  if(memoCard) memoCard.style.display = 'block';
   const memo = document.getElementById('selected-memo-body');
   if(!memo) return;
   if(!latestSuggestedNames || !latestSuggestedNames.length){
