@@ -55,10 +55,9 @@ td:hover{transform:scale(1.05);box-shadow:0 0 12px rgba(227,53,13,.3)}
 .eff-2{background:rgba(227,53,13,.3);color:#ff4d4d;font-weight:bold}
 .eff-05{background:rgba(26,115,232,.3);color:#4dadff}
 
-.detail-card{display:none;background:var(--surface2);border-radius:12px;padding:20px;border:1px solid var(--yellow);margin-top:20px;animation:fadeIn .3s}
+.detail-card{display:none;background:var(--surface2);border-radius:12px;padding:20px;border:1px solid var(--yellow);margin-top:20px;animation:fadeIn .3s;overflow-wrap:anywhere}
 .compare-grid{display:grid;grid-template-columns:1fr 50px 1fr;gap:12px;align-items:start}
 @media(max-width:540px){.compare-grid{grid-template-columns:1fr}.vs-label{display:none}}
-@media(max-width:640px){#ai-container>div:nth-child(2){grid-template-columns:1fr!important}}
 .pokemon-detail{background:var(--surface);border-radius:8px;padding:14px}
 .pokemon-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .pokemon-icon{width:64px;height:64px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);flex-shrink:0;overflow:hidden}
@@ -208,8 +207,13 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 
   <div id="result-area" style="display:none">
     <p style="font-size:11px;color:var(--muted);margin-bottom:8px">※セルをクリックして詳細対面を表示</p>
-    <div class="matrix-card" id="ai-container" style="margin-bottom:12px"></div>
     <div class="matrix-card" id="matrix-container"></div>
+    
+    <div id="team-advice-card" class="detail-card" style="display:block;margin-top:0;margin-bottom:16px;border-color:var(--blue)">
+      <div style="font-size:13px;font-weight:900;color:var(--blue);margin-bottom:10px">おすすめ選出</div>
+      <div id="team-advice-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap"></div>
+    </div>
+
     <div id="detail-card" class="detail-card">
       <div class="compare-grid">
         <div id="my-detail" class="pokemon-detail"></div>
@@ -834,87 +838,120 @@ function getEff(at, defTypes) {
   return r;
 }
 
-function getOffenseScore(myName, oppName){
-  const my=DB[myName], opp=DB[oppName];
-  if(!my||!opp) return 0;
-  let best=0;
-  (my.types||[]).forEach(at=>{
-    const e=getEff(at, opp.types||[]);
-    if(e>best) best=e;
-  });
-  return best;
+function safeTypesOf(name){
+  return (DB[name] && Array.isArray(DB[name].types)) ? DB[name].types : [];
 }
 
-function getDefensePenalty(myName, oppName){
-  const my=DB[myName], opp=DB[oppName];
-  if(!my||!opp) return 0;
-  let worst=0;
-  (opp.types||[]).forEach(at=>{
-    const e=getEff(at, my.types||[]);
-    if(e>worst) worst=e;
-  });
-  if(worst>=4) return 3.0;
-  if(worst>=2) return 1.5;
-  if(worst<=0.5) return -0.5;
-  return 0;
+function scoreMatchup(myName, oppName){
+  var myTypes = safeTypesOf(myName);
+  var oppTypes = safeTypesOf(oppName);
+  var best = 0;
+  for(var i=0;i<myTypes.length;i++){
+    var e = getEff(myTypes[i], oppTypes);
+    if(e > best) best = e;
+  }
+  var back = 0;
+  for(var j=0;j<oppTypes.length;j++){
+    var e2 = getEff(oppTypes[j], myTypes);
+    if(e2 > back) back = e2;
+  }
+  var score = best * 2 - back;
+  if(best >= 2) score += 2;
+  if(back >= 2) score -= 2;
+  return score;
 }
 
-function buildAISuggestions(myNames, oppNames){
-  const scored = myNames.map(name=>{
-    let offense=0, defense=0, strongInto=[];
-    oppNames.forEach(opp=>{
-      const s=getOffenseScore(name, opp);
-      offense += s;
-      defense += getDefensePenalty(name, opp);
-      if(s>=2) strongInto.push(opp);
-    });
-    const p = DB[name]||{};
-    const speed = p.stats?.spe || 0;
-    const bulk = (p.stats?.hp||0)+(p.stats?.def||0)+(p.stats?.spD||0);
-    const bonus = (speed>=100?0.4:0) + (bulk>=280?0.3:0);
-    const total = offense - defense + bonus;
-    return {name,total,offense,defense,strongInto, speed, bulk};
-  }).sort((a,b)=>b.total-a.total);
+function buildAdvice(my, opp){
+  var adviceEl = document.getElementById('team-advice-body');
+  if(!adviceEl) return;
 
-  const top = scored.slice(0,3);
-  const reasons = [];
-  const oppData = oppNames.map(n=>DB[n]).filter(Boolean);
-  const weakToGround = oppData.filter(p=>getEff('じめん', p.types||[])>=2).length;
-  const weakToFairy = oppData.filter(p=>getEff('フェアリー', p.types||[])>=2).length;
-  const weakToIce = oppData.filter(p=>getEff('こおり', p.types||[])>=2).length;
-  if(weakToGround>=2) reasons.push('相手にじめん打点が通りやすいです');
-  if(weakToFairy>=2) reasons.push('相手にフェアリー打点が通りやすいです');
-  if(weakToIce>=2) reasons.push('相手にこおり打点が通りやすいです');
-  if(!reasons.length) reasons.push('タイプ相性と種族値傾向から安定しやすい3体です');
+  if(!my.length || !opp.length){
+    adviceEl.textContent = '自分と相手のポケモンを1体以上入力してください。';
+    return;
+  }
 
-  const cards = top.map((x,i)=>{
-    const detail = [];
-    if(x.strongInto.length) detail.push(`有利候補: ${x.strongInto.slice(0,3).join(' / ')}`);
-    if(x.speed>=100) detail.push('素早さが高め');
-    if(x.bulk>=280) detail.push('数値受けしやすい');
-    if(!detail.length) detail.push('等倍範囲が広い');
-    return `<div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)"><div style="font-weight:900;color:var(--yellow);margin-bottom:4px">${i+1}位 ${x.name}</div><div style="font-size:11px;color:var(--muted)">${detail.join(' / ')}</div></div>`;
-  }).join('');
+  var scores = [];
+  for(var i=0;i<my.length;i++){
+    var total = 0;
+    for(var j=0;j<opp.length;j++){
+      total += scoreMatchup(my[i].name, opp[j].name);
+    }
+    scores.push({name: my[i].name, score: total});
+  }
+  scores.sort(function(a,b){ return b.score - a.score; });
 
-  return `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <div style="font-weight:900;color:var(--yellow)">おすすめ選出</div>
-      <div style="font-size:11px;color:var(--muted)">※タイプ相性・一貫・種族値傾向ベース</div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">${cards}</div>
-    <div style="font-size:12px;line-height:1.7"><span style="font-weight:700;color:var(--blue)">理由:</span> ${reasons.join(' / ')}</div>`;
+  var top = scores.slice(0,3);
+  var oppNames = opp.map(function(x){ return x.name; });
+
+  var reasons = [];
+  var electricCount = 0;
+  var dragonCount = 0;
+  var fairyCount = 0;
+  var fireCount = 0;
+
+  for(var k=0;k<opp.length;k++){
+    var tps = safeTypesOf(opp[k].name);
+    if(tps.indexOf('でんき') !== -1) electricCount++;
+    if(tps.indexOf('ドラゴン') !== -1) dragonCount++;
+    if(tps.indexOf('フェアリー') !== -1) fairyCount++;
+    if(tps.indexOf('ほのお') !== -1) fireCount++;
+  }
+
+  if(electricCount >= 2) reasons.push('・相手にでんきタイプが多く、じめん打点が通りやすいです。');
+  if(dragonCount >= 2) reasons.push('・相手にドラゴンが多く、こおり・フェアリーの打点を意識した選出が有効です。');
+  if(fairyCount >= 2) reasons.push('・相手にフェアリーが多く、はがね・どく打点を持つ駒が安定します。');
+  if(fireCount >= 2) reasons.push('・相手にほのおが多く、みず・じめんで圧をかけやすいです。');
+
+  if(!reasons.length){
+    reasons.push('・相性表の上位3体を基準に、通りのよい打点を優先した安定選出です。');
+  }
+
+  var lines = [];
+  lines.push('おすすめ3体');
+  for(var n=0;n<top.length;n++){
+    lines.push((n+1) + '位: ' + top[n].name + '  (スコア ' + top[n].score.toFixed(1) + ')');
+  }
+  lines.push('');
+  lines.push('理由');
+  for(var r=0;r<reasons.length;r++) lines.push(reasons[r]);
+
+  if(top.length){
+    lines.push('');
+    lines.push('注目対面');
+    for(var a=0;a<top.length;a++){
+      var bestOpp = '';
+      var bestScore = -999;
+      for(var b=0;b<oppNames.length;b++){
+        var s = scoreMatchup(top[a].name, oppNames[b]);
+        if(s > bestScore){
+          bestScore = s;
+          bestOpp = oppNames[b];
+        }
+      }
+      if(bestOpp) lines.push('・' + top[a].name + ' → ' + bestOpp + ' に強め');
+    }
+  }
+
+  adviceEl.textContent = lines.join('\n');
 }
+
 
 function analyze() {
   const my=[], opp=[];
   for(let i=1;i<=6;i++){
-    const n1=document.getElementById('my'+i).value;
+    const n1=(document.getElementById('my'+i).value || '').trim();
     if(DB[n1]) my.push({name:n1,data:DB[n1]});
-    const n2=document.getElementById('opp'+i).value;
+    const n2=(document.getElementById('opp'+i).value || '').trim();
     if(DB[n2]) opp.push({name:n2,data:DB[n2]});
   }
-  if(!my.length||!opp.length) return;
+
   document.getElementById('result-area').style.display='block';
+  buildAdvice(my, opp);
+
+  if(!my.length || !opp.length){
+    document.getElementById('matrix-container').innerHTML = '<div style="font-size:12px;color:var(--muted)">自分と相手のポケモンを1体以上入力してください。</div>';
+    return;
+  }
 
   let html=`<table><tr><th>自分＼相手</th>${opp.map(p=>`<th>${p.name}</th>`).join('')}</tr>`;
   my.forEach(m=>{
@@ -929,7 +966,6 @@ function analyze() {
   });
   html+='</table>';
   document.getElementById('matrix-container').innerHTML=html;
-  document.getElementById('ai-container').innerHTML = buildAISuggestions(my.map(p=>p.name), opp.map(p=>p.name));
 }
 
 // ── Save / Load ────────────────────────────────────────────────
