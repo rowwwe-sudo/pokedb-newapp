@@ -179,6 +179,16 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 }
 
 .advice-card{display:block;background:var(--surface2);border-radius:12px;padding:16px;border:1px solid var(--border);margin-bottom:16px}
+.ai-advice-card{background:var(--surface2);border-radius:12px;padding:16px;border:1px solid var(--border);margin-bottom:16px}
+.ai-advice-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap}
+.ai-advice-title{font-size:14px;font-weight:900;color:var(--green)}
+.ai-run-btn{background:var(--green);border:none;color:#fff;padding:8px 14px;border-radius:8px;font-weight:900;font-size:13px;cursor:pointer;transition:all .2s;flex-shrink:0}
+.ai-run-btn:hover{background:#0a7a4a;transform:translateY(-1px)}
+.ai-run-btn:disabled{background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:not-allowed;transform:none}
+.ai-body{font-size:12px;line-height:1.8;color:var(--text);white-space:pre-wrap;min-height:32px}
+.ai-disclaimer{font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.ai-body.loading{animation:pulse 1.5s ease-in-out infinite;color:var(--muted);font-style:italic}
 .advice-title{font-size:14px;font-weight:900;color:var(--blue);margin-bottom:10px}
 .pick-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
 .pick-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px}
@@ -199,7 +209,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 @media(min-width:700px){.pick-grid{grid-template-columns:1fr 1fr 1fr}.pressure-grid{grid-template-columns:1fr 1fr}}
 
 
-
+#selected-memo-card:empty{display:none}
 </style>
 </head>
 <body>
@@ -235,6 +245,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
     <p style="font-size:11px;color:var(--muted);margin-bottom:8px">※セルをクリックして詳細対面を表示</p>
     <div class="matrix-card" id="matrix-container"></div>
 
+
     <div id="team-advice-card" class="advice-card" style="display:none">
       <div class="advice-title">おすすめ選出 / 型予測 / 苦手警告</div>
       <div id="advice-picks" class="pick-grid"></div>
@@ -253,11 +264,18 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
       </div>
     </div>
 
+    <div id="ai-advice-card" class="ai-advice-card" style="display:none">
+      <div class="ai-advice-header">
+        <div class="ai-advice-title">🤖 AI構築アドバイス</div>
+        <button class="ai-run-btn" id="ai-run-btn" onclick="runAiAdvice()">やっくん構築を検索して分析</button>
+      </div>
+      <div class="ai-body" id="ai-body">相手チームを入力後にボタンを押すと、やっくんなどの構築サイトを検索し、実際の使用率・型情報をもとにアドバイスを生成します。</div>
+      <div class="ai-disclaimer" id="ai-disclaimer">※ Claude APIのウェブ検索を使用。検索時に通信が発生します。</div>
+    </div>
 
-
-    <div id="selected-memo-card" class="advice-card" style="margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
+    <div id="selected-memo-card" class="advice-card" style="display:none;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
       <div class="advice-title" style="color:var(--yellow)">ワンタップ選出メモ</div>
-      <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。「おすすめ3体を選出メモに反映」を押すと記録されます。</div>
+      <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。</div>
     </div>
 
     <div id="detail-card" class="detail-card">
@@ -1101,6 +1119,8 @@ function buildAdvancedAdvice(my, opp){
 let latestSuggestedNames = [];
 
 function applySuggestedSelection(){
+  const memoCard = document.getElementById('selected-memo-card');
+  if(memoCard) memoCard.style.display = 'block';
   const memo = document.getElementById('selected-memo-body');
   if(!memo) return;
   if(!latestSuggestedNames || !latestSuggestedNames.length){
@@ -1113,7 +1133,6 @@ function applySuggestedSelection(){
     '2. ' + (latestSuggestedNames[1] || '---') + '\n' +
     '3. ' + (latestSuggestedNames[2] || '---') + '\n\n' +
     '※ 対戦前の自分用メモとして使えます。';
-  document.getElementById('selected-memo-card').scrollIntoView({behavior:'smooth'});
 }
 
 function renderAiBasis(my, opp){
@@ -1156,6 +1175,84 @@ function scoreMatchup(myName, oppName){
   return score;
 }
 
+function clearAll(){
+  for(let i=1;i<=6;i++){
+    const m=document.getElementById('my'+i); if(m) m.value='';
+    const o=document.getElementById('opp'+i); if(o) o.value='';
+    myConfig[i]=mkCfg(); updateCfgBtn(i);
+  }
+  document.getElementById('result-area').style.display='none';
+  document.getElementById('detail-card').style.display='none';
+  document.getElementById('ai-advice-card').style.display='none';
+  document.getElementById('ai-body').textContent='相手チームを入力後にボタンを押すと、やっくんなどの構築サイトを検索し、実際の使用率・型情報をもとにアドバイスを生成します。';
+  document.getElementById('ai-body').className='ai-body';
+  document.getElementById('ai-run-btn').disabled=false;
+  latestSuggestedNames=[];
+  showToast('クリアしました！');
+}
+
+// ── AI構築アドバイス（Claude API + web_search）──────────────────
+async function runAiAdvice(){
+  const opp=[], my=[];
+  for(let i=1;i<=6;i++){
+    const v=(document.getElementById('opp'+i).value||'').trim();
+    if(DB[v]) opp.push(v);
+    const m=(document.getElementById('my'+i).value||'').trim();
+    if(DB[m]) my.push(m);
+  }
+  if(!opp.length){ showToast('相手チームを入力してください','error'); return; }
+
+  const btn=document.getElementById('ai-run-btn');
+  const body=document.getElementById('ai-body');
+  btn.disabled=true;
+  body.className='ai-body loading';
+  body.textContent='やっくん・構築サイトを検索中...';
+
+  const myStr=my.length?`自分のパーティ: ${my.join('、')}\n`:'';
+  const oppStr=`相手のパーティ: ${opp.join('、')}`;
+  const prompt=`あなたはポケモンチャンピオンズの対戦アドバイザーです。
+${myStr}${oppStr}
+
+以下の手順で分析してください：
+1. やっくん(yakkun.com/bbs/party/)や関連サイトを検索して、相手パーティのポケモン（特に主要な3体）の実際の使用率や型情報を調べる
+2. 相手の各ポケモンの代表的な型（性格・技構成・持ち物）を要約する
+3. それを踏まえて自分側の選出アドバイスを出す
+
+出力フォーマット：
+■ 相手の型予測
+（各ポケモンの代表的な型と注意点）
+
+■ 選出アドバイス
+（上記の型を踏まえた選出・立ち回り提案）
+
+■ 注意ポイント
+（特に警戒すべき技・コンボなど）
+
+日本語で簡潔に出力してください。`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1200,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await res.json();
+    if(data.error){ throw new Error(data.error.message); }
+    const text=data.content.filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+    body.className='ai-body';
+    body.textContent=text||'結果を取得できませんでした。';
+  }catch(e){
+    body.className='ai-body';
+    body.textContent='エラーが発生しました: '+e.message;
+    showToast('AI分析に失敗しました','error');
+  }
+  btn.disabled=false;
+}
 
 function analyze() {
   const my=[], opp=[];
@@ -1168,7 +1265,7 @@ function analyze() {
 
   document.getElementById('result-area').style.display='block';
   buildAdvancedAdvice(my, opp);
-  setTimeout(()=>document.getElementById('team-advice-card').scrollIntoView({behavior:'smooth',block:'start'}),100);
+  if(my.length && opp.length) document.getElementById('ai-advice-card').style.display='block';
 
   if(!my.length || !opp.length){
     document.getElementById('matrix-container').innerHTML = '<div style="font-size:12px;color:var(--muted)">自分と相手のポケモンを1体以上入力してください。</div>';
@@ -1190,21 +1287,7 @@ function analyze() {
   document.getElementById('matrix-container').innerHTML=html;
 }
 
-function clearAll(){
-  for(let i=1;i<=6;i++){
-    const m=document.getElementById('my'+i); if(m) m.value='';
-    const o=document.getElementById('opp'+i); if(o) o.value='';
-    myConfig[i]=mkCfg();
-    updateCfgBtn(i);
-  }
-  document.getElementById('result-area').style.display='none';
-  document.getElementById('detail-card').style.display='none';
-  document.getElementById('selected-memo-body').textContent='まだ選出していません。「おすすめ3体を選出メモに反映」を押すと記録されます。';
-  latestSuggestedNames=[];
-  showToast('クリアしました！');
-}
-
-
+// ── Save / Load ────────────────────────────────────────────────
 function quickSaveTeam(){
   const t=[];
   for(let i=1;i<=6;i++) t.push(document.getElementById('opp'+i).value);
