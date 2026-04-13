@@ -177,6 +177,27 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
   font-family:'Rajdhani';
   font-weight:700;
 }
+
+.advice-card{display:block;background:var(--surface2);border-radius:12px;padding:16px;border:1px solid var(--blue);margin-bottom:16px}
+.advice-title{font-size:14px;font-weight:900;color:var(--blue);margin-bottom:10px}
+.pick-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
+.pick-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px}
+.pick-rank{font-family:'Rajdhani';font-weight:900;color:var(--yellow);font-size:13px}
+.pick-name{font-size:16px;font-weight:900;margin:2px 0 4px}
+.pick-score{font-size:11px;color:var(--muted)}
+.advice-section{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.advice-subtitle{font-size:11px;color:var(--yellow);font-weight:700;margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase}
+.advice-list{display:flex;flex-direction:column;gap:6px}
+.advice-line{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6}
+.role-chip{display:inline-block;padding:2px 6px;border-radius:999px;background:rgba(26,115,232,.18);border:1px solid rgba(26,115,232,.4);font-size:10px;margin-right:4px}
+.warn-chip{display:inline-block;padding:2px 6px;border-radius:999px;background:rgba(227,53,13,.14);border:1px solid rgba(227,53,13,.4);font-size:10px;margin-right:4px}
+.pressure-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.pressure-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.pressure-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px}
+.pressure-bar-wrap{height:8px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.pressure-bar{height:100%;background:linear-gradient(90deg,var(--blue),var(--red));border-radius:999px}
+@media(min-width:700px){.pick-grid{grid-template-columns:1fr 1fr 1fr}.pressure-grid{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -208,6 +229,24 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
   <div id="result-area" style="display:none">
     <p style="font-size:11px;color:var(--muted);margin-bottom:8px">※セルをクリックして詳細対面を表示</p>
     <div class="matrix-card" id="matrix-container"></div>
+
+    <div id="team-advice-card" class="advice-card" style="display:none">
+      <div class="advice-title">おすすめ選出 / 型予測 / 苦手警告</div>
+      <div id="advice-picks" class="pick-grid"></div>
+      <div class="advice-section">
+        <div class="advice-subtitle">選出理由</div>
+        <div id="advice-reasons" class="advice-list"></div>
+      </div>
+      <div class="advice-section">
+        <div class="advice-subtitle">苦手警告</div>
+        <div id="advice-warnings" class="advice-list"></div>
+      </div>
+      <div class="advice-section">
+        <div class="advice-subtitle">一貫 / 圧力の可視化</div>
+        <div id="advice-pressure" class="pressure-grid"></div>
+      </div>
+    </div>
+
     
     <div id="team-advice-card" class="detail-card" style="display:block;margin-top:0;margin-bottom:16px;border-color:var(--blue)">
       <div style="font-size:13px;font-weight:900;color:var(--blue);margin-bottom:10px">おすすめ選出</div>
@@ -831,6 +870,197 @@ function renderOppSide(p, name) {
     ${abHTML}`;
 }
 
+
+const META_HINTS = {
+  'カイリュー': {roles:['積み','先制技','終盤エース'], notes:['りゅうのまい展開が多い','しんそく圏内に入れられやすい']},
+  'サーフゴー': {roles:['特殊アタッカー','崩し','補助対策'], notes:['ゴールドラッシュ系の高火力を警戒','変化技対策として強め']},
+  'ガブリアス': {roles:['物理アタッカー','スカーフ候補','ステロ'], notes:['高速物理やステロ展開が多い']},
+  'ミミッキュ': {roles:['ストッパー','積み','先制圏調整'], notes:['行動保証からの切り返しが強い']},
+  'メガエルレイド': {roles:['高速物理','積みエース'], notes:['つるぎのまい型を警戒']},
+  'メガアブソル': {roles:['高速物理','崩し'], notes:['高火力の悪打点が一貫しやすい']},
+  'メガカイリュー': {roles:['積み','先制技','終盤エース'], notes:['りゅうのまい＋先制技想定が無難']},
+  'メガルカリオ': {roles:['高速エース','物理/特殊両対応'], notes:['型の幅が広く、受け出し先を絞りにくい']},
+  'メガゲンガー': {roles:['特殊エース','崩し'], notes:['高速特殊の一貫に注意']},
+  'メガリザードンX': {roles:['積み','物理エース'], notes:['りゅうのまい想定が多い']},
+  'メガリザードンY': {roles:['特殊エース','晴れ展開'], notes:['高火力特殊打点を警戒']},
+  'メガフシギバナ': {roles:['耐久','崩し対策'], notes:['耐久寄りで受け回し気味']},
+  'メガメタグロス': {roles:['高速物理','対面性能'], notes:['広い打点範囲が強み']},
+  'メガバシャーモ': {roles:['加速エース','抜き'], notes:['加速後の全抜きを警戒']},
+  'メガボーマンダ': {roles:['積み','物理エース'], notes:['威嚇や積みからの突破に注意']},
+  'メガクチート': {roles:['超火力物理','対面破壊'], notes:['等倍でも受けづらいことが多い']},
+  'メガマフォクシー': {roles:['特殊エース','崩し'], notes:['特殊炎打点が強力']},
+  'メガエンブオー': {roles:['物理崩し','高火力'], notes:['反動高火力や範囲技に注意']},
+  'メガブリガロン': {roles:['耐久','物理受け'], notes:['受け性能と反撃を両立しやすい']}
+};
+
+const ROLE_WEIGHTS = {
+  '積み': 1.3,
+  '先制技': 1.2,
+  '終盤エース': 1.15,
+  '高速物理': 1.15,
+  '高速エース': 1.15,
+  '特殊アタッカー': 1.05,
+  '崩し': 1.08,
+  'ストッパー': 1.1,
+  'ステロ': 1.05
+};
+
+function safeTypesOf(name){
+  return (DB[name] && Array.isArray(DB[name].types)) ? DB[name].types : [];
+}
+function getMetaHint(name){
+  return META_HINTS[name] || {roles:[], notes:[]};
+}
+function bestAttackEffect(attackerName, defenderName){
+  const atkTypes = safeTypesOf(attackerName);
+  const defTypes = safeTypesOf(defenderName);
+  let best = 0;
+  atkTypes.forEach(t => {
+    const e = getEff(t, defTypes);
+    if(e > best) best = e;
+  });
+  return best;
+}
+function bestReturnEffect(defenderName, attackerName){
+  return bestAttackEffect(defenderName, attackerName);
+}
+function scoreMatchup(myName, oppName){
+  const atk = bestAttackEffect(myName, oppName);
+  const back = bestReturnEffect(oppName, myName);
+  let score = atk * 2 - back;
+  if(atk >= 4) score += 2.5;
+  else if(atk >= 2) score += 1.25;
+  if(back >= 4) score -= 2.5;
+  else if(back >= 2) score -= 1.25;
+  const hint = getMetaHint(myName);
+  (hint.roles || []).forEach(r => { score *= (ROLE_WEIGHTS[r] || 1); });
+  return score;
+}
+function aggregateWeakPressure(my, opp){
+  const interesting = ['じめん','フェアリー','こおり','でんき','ほのお','みず','かくとう'];
+  return interesting.map(type => {
+    let weak = 0;
+    opp.forEach(o => {
+      const defTypes = safeTypesOf(o.name);
+      const e = getEff(type, defTypes);
+      if(e >= 2) weak++;
+    });
+    return {type, weak, ratio: opp.length ? Math.round((weak / opp.length) * 100) : 0};
+  }).sort((a,b)=> b.weak - a.weak);
+}
+function inferThreatWarnings(my, opp){
+  const warnings = [];
+  const oppTypesFlat = [];
+  opp.forEach(o => safeTypesOf(o.name).forEach(t => oppTypesFlat.push(t)));
+
+  const countType = (t) => oppTypesFlat.filter(x => x === t).length;
+
+  if(countType('でんき') >= 2) warnings.push({tag:'一貫', text:'相手に でんき が多め。じめん を切ると通されやすいです。'});
+  if(countType('フェアリー') >= 2) warnings.push({tag:'一貫', text:'相手に フェアリー が多め。ドラゴン軸は選出を慎重に。'});
+  if(countType('こおり') >= 2) warnings.push({tag:'一貫', text:'相手に こおり 打点が多め。ドラゴン / ひこう を重ねすぎない方が安全です。'});
+  if(countType('かくとう') >= 2) warnings.push({tag:'圧力', text:'かくとう 打点が通りやすい並びの可能性があります。ゴーストやフェアリーを絡めたいです。'});
+  if(countType('ほのお') >= 2) warnings.push({tag:'圧力', text:'ほのお 打点が濃いです。みず / じめん で圧を返せる駒を優先したいです。'});
+
+  opp.forEach(o => {
+    const hint = getMetaHint(o.name);
+    const roles = hint.roles || [];
+    if(roles.includes('積み')) warnings.push({tag:'型警戒', text:o.name + ' は積み展開が多め。ストッパーや先制技を残したいです。'});
+    if(roles.includes('先制技')) warnings.push({tag:'型警戒', text:o.name + ' は先制技で締めに来やすいです。終盤のHP管理を意識。'});
+    if(roles.includes('ステロ')) warnings.push({tag:'型警戒', text:o.name + ' は起点作成寄りも多め。受け回しだけに寄せすぎない方が安全です。'});
+  });
+
+  const uniq = [];
+  const seen = {};
+  warnings.forEach(w => {
+    const k = w.tag + '|' + w.text;
+    if(!seen[k]){
+      seen[k] = true;
+      uniq.push(w);
+    }
+  });
+  return uniq.slice(0, 6);
+}
+function buildAdvancedAdvice(my, opp){
+  const card = document.getElementById('team-advice-card');
+  const picksEl = document.getElementById('advice-picks');
+  const reasonsEl = document.getElementById('advice-reasons');
+  const warningsEl = document.getElementById('advice-warnings');
+  const pressureEl = document.getElementById('advice-pressure');
+  if(!card || !picksEl || !reasonsEl || !warningsEl || !pressureEl) return;
+
+  card.style.display = 'block';
+  picksEl.innerHTML = '';
+  reasonsEl.innerHTML = '';
+  warningsEl.innerHTML = '';
+  pressureEl.innerHTML = '';
+
+  if(!my.length || !opp.length){
+    reasonsEl.innerHTML = '<div class="advice-line">自分と相手のポケモンを1体以上入力してください。</div>';
+    return;
+  }
+
+  const scores = my.map(m => {
+    let total = 0;
+    const good = [];
+    opp.forEach(o => {
+      const sc = scoreMatchup(m.name, o.name);
+      total += sc;
+      if(sc > 1.5) good.push(o.name);
+    });
+    return {name:m.name, total, good};
+  }).sort((a,b)=> b.total - a.total);
+
+  const top = scores.slice(0,3);
+  top.forEach((p, idx) => {
+    const hint = getMetaHint(p.name);
+    const rolesHtml = (hint.roles || []).slice(0,3).map(r => `<span class="role-chip">${r}</span>`).join('');
+    const goodText = p.good.length ? `強め: ${p.good.slice(0,3).join(' / ')}` : '広く等倍以上を取りやすい枠';
+    picksEl.innerHTML += `
+      <div class="pick-item">
+        <div class="pick-rank">${idx+1}位</div>
+        <div class="pick-name">${p.name}</div>
+        <div style="margin-bottom:6px">${rolesHtml}</div>
+        <div class="pick-score">総合スコア ${p.total.toFixed(1)} / ${goodText}</div>
+      </div>`;
+  });
+
+  const pressures = aggregateWeakPressure(my, opp);
+  const topPressure = pressures.slice(0,4);
+  topPressure.forEach(p => {
+    reasonsEl.innerHTML += `<div class="advice-line">・相手に <strong>${p.type}</strong> が ${p.weak}/${opp.length} 体へ通りやすいです。${p.type} 打点を持つ駒を優先すると組み立てやすいです。</div>`;
+  });
+
+  const roleLines = [];
+  opp.forEach(o => {
+    const hint = getMetaHint(o.name);
+    if((hint.roles || []).length || (hint.notes || []).length){
+      roleLines.push(`<div class="advice-line"><span class="warn-chip">型予測</span><strong>${o.name}</strong> : ${(hint.roles || []).join(' / ') || '標準型'}${(hint.notes && hint.notes[0]) ? ' — ' + hint.notes[0] : ''}</div>`);
+    }
+  });
+  if(!roleLines.length){
+    reasonsEl.innerHTML += `<div class="advice-line">・相性表の上位3体を基準に、通りの良い打点と終盤のしめ性能を優先した安定選出です。</div>`;
+  } else {
+    reasonsEl.innerHTML += roleLines.join('');
+  }
+
+  const warns = inferThreatWarnings(my, opp);
+  if(warns.length){
+    warns.forEach(w => {
+      warningsEl.innerHTML += `<div class="advice-line"><span class="warn-chip">${w.tag}</span>${w.text}</div>`;
+    });
+  } else {
+    warningsEl.innerHTML = `<div class="advice-line">大きなタイプ偏りは薄めです。上位3体をベースに、初手の通りと終盤の詰め筋を優先すると安定します。</div>`;
+  }
+
+  topPressure.forEach(p => {
+    pressureEl.innerHTML += `
+      <div class="pressure-row">
+        <div class="pressure-head"><span>${p.type} の通り</span><strong>${p.weak}/${opp.length}体</strong></div>
+        <div class="pressure-bar-wrap"><div class="pressure-bar" style="width:${p.ratio}%"></div></div>
+      </div>`;
+  });
+}
+
 // ── Analyze ────────────────────────────────────────────────────
 function getEff(at, defTypes) {
   let r=1;
@@ -946,7 +1176,7 @@ function analyze() {
   }
 
   document.getElementById('result-area').style.display='block';
-  buildAdvice(my, opp);
+  buildAdvancedAdvice(my, opp);
 
   if(!my.length || !opp.length){
     document.getElementById('matrix-container').innerHTML = '<div style="font-size:12px;color:var(--muted)">自分と相手のポケモンを1体以上入力してください。</div>';
