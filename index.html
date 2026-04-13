@@ -164,6 +164,21 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 .cfg-submit-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-weight:900;font-size:14px;cursor:pointer;transition:all .2s;margin-top:6px}
 .cfg-submit-btn:hover{background:#1558b0}
 
+
+.damage-wrap{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.damage-title{font-size:11px;color:var(--yellow);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.damage-note{font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5}
+.damage-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px}
+.damage-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.damage-name{font-weight:700;font-size:13px}
+.damage-meta{font-size:10px;color:var(--muted)}
+.damage-bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden;margin:6px 0}
+.damage-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--red))}
+.damage-values{font-family:'Rajdhani';font-size:15px;font-weight:700}
+.damage-ko{font-size:11px;color:var(--yellow);font-weight:700}
+.damage-empty{font-size:11px;color:var(--muted);padding:10px 0}
+.mega-badge{display:inline-block;margin-top:4px;padding:2px 6px;border-radius:999px;background:rgba(245,197,24,.15);border:1px solid rgba(245,197,24,.45);font-size:9px;color:var(--yellow);font-weight:700;letter-spacing:.5px}
+
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideIn{from{opacity:0;transform:translateX(100px)}to{opacity:1;transform:translateX(0)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
@@ -177,27 +192,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
   font-family:'Rajdhani';
   font-weight:700;
 }
-
-.damage-card{display:none;background:var(--surface);border-radius:12px;padding:16px;border:1px solid var(--border);margin-top:16px}
-.damage-title{font-weight:900;color:var(--yellow);font-size:14px;margin-bottom:10px}
-.damage-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
-.damage-row{padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface2)}
-.damage-move{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
-.damage-move-name{font-weight:700;font-size:13px}
-.damage-meta-line{font-size:11px;color:var(--muted);line-height:1.5}
-.damage-bad{color:#ff9090}
-.damage-good{color:#8be28b}
-.damage-kill{font-weight:700;color:var(--blue)}
-
 </style>
-
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f172a">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PokeTool">
-<link rel="apple-touch-icon" href="icon-192.png">
-
 </head>
 <body>
 
@@ -234,7 +229,11 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
         <div class="vs-label">VS</div>
         <div id="opp-detail" class="pokemon-detail"></div>
       </div>
-      <div id="damage-panel" class="damage-card"></div>
+      <div class="damage-wrap">
+        <div class="damage-title">ダメージ計算</div>
+        <div class="damage-note">※ 自分側の設定技を、相手側の設定値に対して計算します。急所・天候・壁・特性の細かい補正は未反映です。</div>
+        <div id="damage-area"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -308,8 +307,9 @@ const MAX_TOTAL_EP = 66, MAX_EP = 32;
 
 function mkCfg() { return {nature:'まじめ', evs:{hp:0,atk:0,def:0,spA:0,spD:0,spe:0}, moves:['','','',''],item:''}; }
 let myConfig = {};
-for(let i=1;i<=6;i++) myConfig[i] = mkCfg();
-let editSlot = null, editPoke = null;
+let oppConfig = {};
+for(let i=1;i<=6;i++){ myConfig[i] = mkCfg(); oppConfig[i] = mkCfg(); }
+let editSlot = null, editPoke = null, editTeam = 'my';
 let tempEvs = {};
 
 // ── Natures ───────────────────────────────────────────────────
@@ -435,76 +435,56 @@ function matchJaKeyword(name, query){
 }
 
 
-
 const ALT_SPRITES = {
-  'メガフシギバナ':['https://play.pokemonshowdown.com/sprites/xyani/venusaur-mega.gif'],
-  'メガリザードンX':['https://play.pokemonshowdown.com/sprites/xyani/charizard-megax.gif'],
-  'メガリザードンY':['https://play.pokemonshowdown.com/sprites/xyani/charizard-megay.gif'],
-  'メガカメックス':['https://play.pokemonshowdown.com/sprites/xyani/blastoise-mega.gif'],
-  'メガスピアー':['https://play.pokemonshowdown.com/sprites/xyani/beedrill-mega.gif'],
-  'メガピジョット':['https://play.pokemonshowdown.com/sprites/xyani/pidgeot-mega.gif'],
-  'メガフーディン':['https://play.pokemonshowdown.com/sprites/xyani/alakazam-mega.gif'],
-  'メガヤドラン':['https://play.pokemonshowdown.com/sprites/xyani/slowbro-mega.gif'],
-  'メガゲンガー':['https://play.pokemonshowdown.com/sprites/xyani/gengar-mega.gif'],
-  'メガガルーラ':['https://play.pokemonshowdown.com/sprites/xyani/kangaskhan-mega.gif'],
-  'メガカイロス':['https://play.pokemonshowdown.com/sprites/xyani/pinsir-mega.gif'],
-  'メガギャラドス':['https://play.pokemonshowdown.com/sprites/xyani/gyarados-mega.gif'],
-  'メガプテラ':['https://play.pokemonshowdown.com/sprites/xyani/aerodactyl-mega.gif'],
-  'メガデンリュウ':['https://play.pokemonshowdown.com/sprites/xyani/ampharos-mega.gif'],
-  'メガハガネール':['https://play.pokemonshowdown.com/sprites/xyani/steelix-mega.gif'],
-  'メガハッサム':['https://play.pokemonshowdown.com/sprites/xyani/scizor-mega.gif'],
-  'メガヘラクロス':['https://play.pokemonshowdown.com/sprites/xyani/heracross-mega.gif'],
-  'メガヘルガー':['https://play.pokemonshowdown.com/sprites/xyani/houndoom-mega.gif'],
-  'メガバンギラス':['https://play.pokemonshowdown.com/sprites/xyani/tyranitar-mega.gif'],
-  'メガサーナイト':['https://play.pokemonshowdown.com/sprites/xyani/gardevoir-mega.gif'],
-  'メガヤミラミ':['https://play.pokemonshowdown.com/sprites/xyani/sableye-mega.gif'],
-  'メガボスゴドラ':['https://play.pokemonshowdown.com/sprites/xyani/aggron-mega.gif'],
-  'メガチャーレム':['https://play.pokemonshowdown.com/sprites/xyani/medicham-mega.gif'],
-  'メガライボルト':['https://play.pokemonshowdown.com/sprites/xyani/manectric-mega.gif'],
-  'メガサメハダー':['https://play.pokemonshowdown.com/sprites/xyani/sharpedo-mega.gif'],
-  'メガバクーダ':['https://play.pokemonshowdown.com/sprites/xyani/camerupt-mega.gif'],
-  'メガチルタリス':['https://play.pokemonshowdown.com/sprites/xyani/altaria-mega.gif'],
-  'メガジュペッタ':['https://play.pokemonshowdown.com/sprites/xyani/banette-mega.gif'],
-  'メガアブソル':['https://play.pokemonshowdown.com/sprites/xyani/absol-mega.gif'],
-  'メガオニゴーリ':['https://play.pokemonshowdown.com/sprites/xyani/glalie-mega.gif'],
-  'メガミミロップ':['https://play.pokemonshowdown.com/sprites/xyani/lopunny-mega.gif'],
-  'メガガブリアス':['https://play.pokemonshowdown.com/sprites/xyani/garchomp-mega.gif'],
-  'メガルカリオ':['https://play.pokemonshowdown.com/sprites/xyani/lucario-mega.gif'],
-  'メガユキノオー':['https://play.pokemonshowdown.com/sprites/xyani/abomasnow-mega.gif'],
-  'メガエルレイド':['https://play.pokemonshowdown.com/sprites/xyani/gallade-mega.gif'],
-
-  'メガエンブオー':['https://efour.b-cdn.net/uploads/default/original/3X/5/f/5f726d561ad79d2554509c894fc85ce2789f9f7e.jpeg'],
-  'メガドリュウズ':['https://efour.b-cdn.net/uploads/default/original/3X/0/7/07cc6359bf7d082608d3a89fe0b0ba5d1ed924d4.jpeg'],
-  'メガペンドラー':['https://efour.b-cdn.net/uploads/default/original/3X/e/c/ec9af4ca8e8bd7b2a132855a1bd8b00244045a52.jpeg'],
-  'メガズルズキン':['https://efour.b-cdn.net/uploads/default/original/3X/5/4/54af914b10fe339337f029c8b53be32da617fd8a.jpeg'],
-  'メガシビルドン':['https://efour.b-cdn.net/uploads/default/original/3X/0/a/0ac27954cbdcd6611123064b1d0f34addc824bb4.jpeg'],
-  'メガシャンデラ':['https://efour.b-cdn.net/uploads/default/original/3X/f/c/fc04c36da223a8d85a2e98700fdd800456e3ab07.jpeg'],
-  'メガゴルーグ':['https://efour.b-cdn.net/uploads/default/original/3X/2/9/295675d81fd3494933244e85cd111c08d810d697.jpeg'],
-  'メガブリガロン':['https://efour.b-cdn.net/uploads/default/original/3X/7/8/78c8f638d4b971f820223605d5e5880c8c91ea47.jpeg'],
-  'メガマフォクシー':['https://efour.b-cdn.net/uploads/default/original/3X/c/d/cdfb5474ba18323641cdefd98f3f78dc6fe5568c.jpeg'],
-  'メガゲッコウガ':['https://efour.b-cdn.net/uploads/default/original/3X/2/f/2f2ca0c839eb816af7a3d097ef707d55131a54fd.jpeg'],
-  'メガカエンジシ':['https://efour.b-cdn.net/uploads/default/original/3X/3/7/3777156d3d965d52533a655a171e623379575daf.jpeg'],
-  'メガフラエッテ':['https://efour.b-cdn.net/uploads/default/original/3X/c/d/cdac10e58b8c0960dce281af569c0660f4f324ee.png'],
-  'メガニャオニクス':['https://efour.b-cdn.net/uploads/default/original/3X/8/7/879099aa62b138153f33bb9e5346e636dceeaf41.png'],
-  'メガカラマネロ':['https://efour.b-cdn.net/uploads/default/original/3X/d/d/dd188adc152116689474eb07efe4addaec2f5bfc.jpeg'],
-  'メガガメノデス':['https://efour.b-cdn.net/uploads/default/original/3X/1/5/1542506439e6987d8940b56383c9a2b0c585f9ec.jpeg'],
-  'メガドラミドロ':['https://efour.b-cdn.net/uploads/default/original/3X/8/4/84a62165d5811ddc5100f0dcd725a07a1df88b83.jpeg'],
-  'メガルチャブル':['https://efour.b-cdn.net/uploads/default/original/3X/a/8/a8c348168b1b133c0d8fdea6e89b3041c46dc12a.jpeg'],
-  'メガジガルデ':['https://efour.b-cdn.net/uploads/default/original/3X/f/0/f00dd0bca18e6e2abe5a543fbee9138a4000ead7.jpeg']
+  'メガフシギバナ':'https://play.pokemonshowdown.com/sprites/xyani/venusaur-mega.gif',
+  'メガリザードンX':'https://play.pokemonshowdown.com/sprites/xyani/charizard-megax.gif',
+  'メガリザードンY':'https://play.pokemonshowdown.com/sprites/xyani/charizard-megay.gif',
+  'メガカメックス':'https://play.pokemonshowdown.com/sprites/xyani/blastoise-mega.gif',
+  'メガスピアー':'https://play.pokemonshowdown.com/sprites/xyani/beedrill-mega.gif',
+  'メガピジョット':'https://play.pokemonshowdown.com/sprites/xyani/pidgeot-mega.gif',
+  'メガフーディン':'https://play.pokemonshowdown.com/sprites/xyani/alakazam-mega.gif',
+  'メガヤドラン':'https://play.pokemonshowdown.com/sprites/xyani/slowbro-mega.gif',
+  'メガゲンガー':'https://play.pokemonshowdown.com/sprites/xyani/gengar-mega.gif',
+  'メガガルーラ':'https://play.pokemonshowdown.com/sprites/xyani/kangaskhan-mega.gif',
+  'メガカイロス':'https://play.pokemonshowdown.com/sprites/xyani/pinsir-mega.gif',
+  'メガギャラドス':'https://play.pokemonshowdown.com/sprites/xyani/gyarados-mega.gif',
+  'メガプテラ':'https://play.pokemonshowdown.com/sprites/xyani/aerodactyl-mega.gif',
+  'メガニウム':'https://play.pokemonshowdown.com/sprites/xyani/meganium.gif',
+  'メガデンリュウ':'https://play.pokemonshowdown.com/sprites/xyani/ampharos-mega.gif',
+  'メガハガネール':'https://play.pokemonshowdown.com/sprites/xyani/steelix-mega.gif',
+  'メガハッサム':'https://play.pokemonshowdown.com/sprites/xyani/scizor-mega.gif',
+  'メガヘラクロス':'https://play.pokemonshowdown.com/sprites/xyani/heracross-mega.gif',
+  'メガヘルガー':'https://play.pokemonshowdown.com/sprites/xyani/houndoom-mega.gif',
+  'メガバンギラス':'https://play.pokemonshowdown.com/sprites/xyani/tyranitar-mega.gif',
+  'メガサーナイト':'https://play.pokemonshowdown.com/sprites/xyani/gardevoir-mega.gif',
+  'メガヤミラミ':'https://play.pokemonshowdown.com/sprites/xyani/sableye-mega.gif',
+  'メガボスゴドラ':'https://play.pokemonshowdown.com/sprites/xyani/aggron-mega.gif',
+  'メガチャーレム':'https://play.pokemonshowdown.com/sprites/xyani/medicham-mega.gif',
+  'メガライボルト':'https://play.pokemonshowdown.com/sprites/xyani/manectric-mega.gif',
+  'メガサメハダー':'https://play.pokemonshowdown.com/sprites/xyani/sharpedo-mega.gif',
+  'メガバクーダ':'https://play.pokemonshowdown.com/sprites/xyani/camerupt-mega.gif',
+  'メガチルタリス':'https://play.pokemonshowdown.com/sprites/xyani/altaria-mega.gif',
+  'メガジュペッタ':'https://play.pokemonshowdown.com/sprites/xyani/banette-mega.gif',
+  'メガアブソル':'https://play.pokemonshowdown.com/sprites/xyani/absol-mega.gif',
+  'メガオニゴーリ':'https://play.pokemonshowdown.com/sprites/xyani/glalie-mega.gif',
+  'メガミミロップ':'https://play.pokemonshowdown.com/sprites/xyani/lopunny-mega.gif',
+  'メガガブリアス':'https://play.pokemonshowdown.com/sprites/xyani/garchomp-mega.gif',
+  'メガルカリオ':'https://play.pokemonshowdown.com/sprites/xyani/lucario-mega.gif',
+  'メガユキノオー':'https://play.pokemonshowdown.com/sprites/xyani/abomasnow-mega.gif',
+  'メガエルレイド':'https://play.pokemonshowdown.com/sprites/xyani/gallade-mega.gif'
 };
 
 function getSprite(name) {
   const ab = name.substring(0,3).replace(/'/g,'');
-  const sources = [];
-  if (ALT_SPRITES[name]) sources.push(...ALT_SPRITES[name]);
+  const megaBadge = name.startsWith('メガ') ? `<div class="mega-badge">MEGA</div>` : '';
+  if (ALT_SPRITES[name]) {
+    return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><img src="${ALT_SPRITES[name]}" alt="${name}" style="width:100%;height:100%;object-fit:contain">${megaBadge}</div>`;
+  }
   const id = SM[name];
-  if (id) sources.push(`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`);
-  if (!sources.length) return `<div style="font-size:16px;font-weight:bold;color:var(--muted)">${ab}</div>`;
-
-  const fallbackData = encodeURIComponent(JSON.stringify(sources.slice(1)));
-  return `<img src="${sources[0]}" data-fallbacks="${fallbackData}" alt="${name}" style="width:100%;height:100%;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges" onerror="(function(img){let list=[];try{list=JSON.parse(decodeURIComponent(img.getAttribute('data-fallbacks')||''))}catch(e){} if(list.length){img.setAttribute('data-fallbacks', encodeURIComponent(JSON.stringify(list.slice(1)))); img.src=list[0];}else{img.outerHTML='<div style=&quot;font-size:16px;font-weight:bold;color:var(--muted)&quot;>${ab}</div>';}})(this)">`;
+  if (!id) return `<div style="font-size:16px;font-weight:bold;color:var(--muted);text-align:center">${ab}${megaBadge}</div>`;
+  const url = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><img src="${url}" alt="${name}" style="width:100%;height:100%;object-fit:contain;image-rendering:pixelated" onerror="this.outerHTML='';this.parentElement.innerHTML='<div style=&quot;font-size:16px;font-weight:bold;color:var(--muted);text-align:center&quot;>${ab}</div>${megaBadge.replace(/"/g,'&quot;')}';"></div>`;
 }
-
 
 function showToast(msg, type='success') {
   const t = document.createElement('div');
@@ -525,15 +505,20 @@ function initInputs() {
         <input type="text" id="my${i}" class="poke-input" placeholder="${i}体目" oninput="suggest('my${i}')">
         <div id="sug_my${i}" class="suggest-list"></div>
       </div>
-      <button class="config-btn" id="cfgbtn${i}" onclick="openConfigModal(${i})" title="性格・努力値・技を設定">⚙</button>`;
+      <button class="config-btn" id="cfgbtn${i}" onclick="openConfigModal(${i},'my')" title="性格・努力値・技を設定">⚙</button>`;
     myC.appendChild(row);
   }
   const oppC = document.getElementById('opp-inputs');
   for(let i=1;i<=6;i++) {
-    const d = document.createElement('div');
-    d.style.position='relative';
-    d.innerHTML = `<input type="text" id="opp${i}" class="poke-input" placeholder="${i}体目" oninput="suggest('opp${i}')"><div id="sug_opp${i}" class="suggest-list"></div>`;
-    oppC.appendChild(d);
+    const row = document.createElement('div');
+    row.className = 'my-slot';
+    row.innerHTML = `
+      <div style="position:relative;flex:1">
+        <input type="text" id="opp${i}" class="poke-input" placeholder="${i}体目" oninput="suggest('opp${i}')">
+        <div id="sug_opp${i}" class="suggest-list"></div>
+      </div>
+      <button class="config-btn" id="ocfgbtn${i}" onclick="openConfigModal(${i},'opp')" title="相手の性格・努力値・持ち物を設定">⚙</button>`;
+    oppC.appendChild(row);
   }
 }
 
@@ -557,23 +542,23 @@ function suggest(id) {
 }
 
 // ── Config Modal ───────────────────────────────────────────────
-function openConfigModal(slot) {
+function openConfigModal(slot, team='my') {
+  editTeam = team;
   editSlot = slot;
-  const pokeName = document.getElementById('my'+slot).value;
-  // ポケモンが未選択/DB未登録でもモーダルは開く（実数値表示はスキップ）
+  const inputId = team === 'my' ? 'my' : 'opp';
+  const store = team === 'my' ? myConfig : oppConfig;
+  const pokeName = document.getElementById(inputId + slot).value;
   editPoke = (pokeName && DB[pokeName]) ? pokeName : null;
-  tempEvs = {...myConfig[slot].evs};
+  tempEvs = {...store[slot].evs};
 
   document.getElementById('cfg-title').textContent =
-    editPoke ? `${pokeName} の設定` : `スロット${slot} の設定（ポケモン未選択）`;
+    editPoke ? `${team === 'my' ? '自分' : '相手'}: ${pokeName} の設定` : `${team === 'my' ? '自分' : '相手'}スロット${slot} の設定（ポケモン未選択）`;
 
-  document.getElementById('cfg-item').value = myConfig[slot].item || '';  
+  document.getElementById('cfg-item').value = store[slot].item || '';
 
-  // Nature select（onNatureChangeはEV行作成後に呼ぶ）
   const natSel = document.getElementById('cfg-nature');
-  natSel.innerHTML = Object.keys(NATURES).map(n=>`<option value="${n}"${n===myConfig[slot].nature?' selected':''}>${n}</option>`).join('');
+  natSel.innerHTML = Object.keys(NATURES).map(n=>`<option value="${n}"${n===store[slot].nature?' selected':''}>${n}</option>`).join('');
 
-  // EV rows を先に作成（onNatureChange→refreshEVDisplayが参照するDOM）
   const evRows = document.getElementById('cfg-ev-rows');
   evRows.innerHTML = '';
   STAT_KEYS.forEach(k=>{
@@ -589,21 +574,18 @@ function openConfigModal(slot) {
     evRows.appendChild(r);
   });
 
-  // Move inputs
   const moveGrid = document.getElementById('cfg-moves');
   moveGrid.innerHTML = '';
   for(let i=0;i<4;i++){
     const w=document.createElement('div');
     w.className='move-wrap';
     w.innerHTML=`
-      <input type="text" class="move-input" id="cm${i}" placeholder="技${i+1}" value="${myConfig[slot].moves[i]||''}" oninput="suggestMove(${i})" onblur="setTimeout(()=>hideMSug(${i}),150)">
+      <input type="text" class="move-input" id="cm${i}" placeholder="技${i+1}" value="${store[slot].moves[i]||''}" oninput="suggestMove(${i})" onblur="setTimeout(()=>hideMSug(${i}),150)">
       <div class="msug-list" id="ms${i}"></div>`;
     moveGrid.appendChild(w);
   }
 
-  // EV行作成後にnature hint + EV表示を更新
   onNatureChange();
-  hideItemSug();
   document.getElementById('config-modal').style.display='flex';
 }
 
@@ -671,26 +653,27 @@ function inputEV(key){
 }
 function applyConfig() {
   if(!editSlot) return;
-  myConfig[editSlot].nature = document.getElementById('cfg-nature').value;
-  myConfig[editSlot].evs = {...tempEvs};
-  myConfig[editSlot].item = document.getElementById('cfg-item').value;
-  for(let i=0;i<4;i++) myConfig[editSlot].moves[i] = document.getElementById('cm'+i).value;
-  updateCfgBtn(editSlot);
+  const store = editTeam === 'my' ? myConfig : oppConfig;
+  store[editSlot].nature = document.getElementById('cfg-nature').value;
+  store[editSlot].evs = {...tempEvs};
+  store[editSlot].item = document.getElementById('cfg-item').value;
+  for(let i=0;i<4;i++) store[editSlot].moves[i] = document.getElementById('cm'+i).value;
+  updateCfgBtn(editSlot, editTeam);
   closeConfigModal();
-  showToast(`${editPoke} の設定を保存しました！`,'success');
+  showToast(`${editTeam === 'my' ? '自分' : '相手'} ${editPoke || `スロット${editSlot}`} の設定を保存しました！`,'success');
 }
 
-function updateCfgBtn(slot) {
-  const btn = document.getElementById('cfgbtn'+slot);
+function updateCfgBtn(slot, team='my') {
+  const btn = document.getElementById((team === 'my' ? 'cfgbtn' : 'ocfgbtn') + slot);
   if(!btn) return;
-  const cfg = myConfig[slot];
+  const cfg = team === 'my' ? myConfig[slot] : oppConfig[slot];
   const hasAny = cfg.nature !== 'まじめ' || Object.values(cfg.evs).some(v=>v>0) || cfg.moves.some(m=>m) || !!cfg.item;
   btn.classList.toggle('configured', hasAny);
 }
 
 function closeConfigModal() {
   document.getElementById('config-modal').style.display='none';
-  editSlot=null; editPoke=null;
+  editSlot=null; editPoke=null; editTeam='my';
 }
 
 // ── Move Suggest ───────────────────────────────────────────────
@@ -772,16 +755,21 @@ function getMySlot(name) {
   return null;
 }
 
+function getOppSlot(name) {
+  for(let i=1;i<=6;i++) if(document.getElementById('opp'+i).value===name) return i;
+  return null;
+}
+
 function showDetail(myName, oppName) {
   const my=DB[myName], opp=DB[oppName];
   if(!my||!opp) return;
-  const slot = getMySlot(myName);
-  const cfg = slot ? myConfig[slot] : null;
-  document.getElementById('my-detail').innerHTML = renderMySide(my, myName, cfg);
-  document.getElementById('opp-detail').innerHTML = renderOppSide(opp, oppName);
-  const dp = document.getElementById('damage-panel');
-  if(dp) dp.innerHTML = renderDamagePanel(my, myName, cfg, opp, oppName);
-  if(dp) dp.style.display = 'block';
+  const mySlot = getMySlot(myName);
+  const oppSlot = getOppSlot(oppName);
+  const myCfg = mySlot ? myConfig[mySlot] : null;
+  const oppCfg = oppSlot ? oppConfig[oppSlot] : null;
+  document.getElementById('my-detail').innerHTML = renderMySide(my, myName, myCfg);
+  document.getElementById('opp-detail').innerHTML = renderOppSide(opp, oppName, oppCfg);
+  document.getElementById('damage-area').innerHTML = renderDamageCalc(my, myName, myCfg, opp, oppName, oppCfg);
   const dc = document.getElementById('detail-card');
   dc.style.display='block';
   dc.scrollIntoView({behavior:'smooth'});
@@ -817,7 +805,7 @@ function renderMySide(p, name, cfg) {
     movesHTML=`<div class="moves-box"><div class="moves-title">技構成</div>${moves.map(m=>{
       const mv=movesDB[m];
       const tc=mv&&mv.type?`bg-${mv.type}`:'';
-      const pw=mv&&mv.power?` ${mv.power}`:'';
+      const pw=(mv&&mv.power!==null&&mv&&mv.power!==undefined)?` ${mv.power}`:'';
       return `<span class="tag ${tc}">${m}${pw}</span>`;
     }).join('')}</div>`;
   }
@@ -840,104 +828,27 @@ function renderMySide(p, name, cfg) {
     ${movesHTML}${itemHTML}${abHTML}`;
 }
 
-
-const MOVE_TYPE_ITEM_BOOST = {
-  'くろおび':'かくとう','くろいメガネ':'あく','もくたん':'ほのお','りゅうのキバ':'ドラゴン',
-  'ようせいのハネ':'フェアリー','かたいいし':'いわ','じしゃく':'でんき','メタルコート':'はがね',
-  'きせきのタネ':'くさ','しんぴのしずく':'みず','とけないこおり':'こおり','どくバリ':'どく',
-  'するどいくちばし':'ひこう','シルクのスカーフ':'ノーマル','ぎんのこな':'むし',
-  'やわらかいすな':'じめん','のろいのおふだ':'ゴースト','まがったスプーン':'エスパー'
-};
-
-function safeStat(poke, key, ep=0, nature='まじめ'){
-  const base=(poke?.stats||{})[key]||0;
-  return calcStat(base,key,ep,nature);
-}
-
-function getMoveCategoryKey(cat){
-  if(cat==='物理') return ['atk','def'];
-  if(cat==='特殊') return ['spA','spD'];
-  return null;
-}
-
-function getItemDamageMod(item, moveType, category){
-  if(!item) return 1;
-  if(MOVE_TYPE_ITEM_BOOST[item] && MOVE_TYPE_ITEM_BOOST[item]===moveType) return 1.2;
-  if(item==='いのちのたま') return 1.3;
-  if(item==='こだわりハチマキ' && category==='物理') return 1.5;
-  if(item==='こだわりメガネ' && category==='特殊') return 1.5;
-  return 1;
-}
-
-function calcMoveDamageRange(attacker, attackerName, cfg, defender, defenderName, moveName){
-  const mv = movesDB[moveName];
-  if(!mv) return {status:'notfound'};
-  if(mv.category==='変化') return {status:'status'};
-  if(mv.power==null) return {status:'variable', move:mv};
-
-  const pair = getMoveCategoryKey(mv.category);
-  if(!pair) return {status:'status'};
-  const [atkKey, defKey] = pair;
-  const atk = safeStat(attacker, atkKey, cfg?.evs?.[atkKey]||0, cfg?.nature||'まじめ');
-  const deff = safeStat(defender, defKey, 0, 'まじめ');
-  const power = Number(mv.power)||0;
-  const stab = (attacker.types||[]).includes(mv.type) ? 1.5 : 1;
-  const eff = getEff(mv.type, defender.types||[]);
-  const itemMod = getItemDamageMod(cfg?.item||'', mv.type, mv.category);
-
-  const level = 50;
-  const base = Math.floor(Math.floor(Math.floor((2*level/5+2) * power * atk / Math.max(1,deff)) / 50) + 2);
-  const min = Math.floor(base * stab * eff * itemMod * 0.85);
-  const max = Math.floor(base * stab * eff * itemMod * 1.00);
-
-  const hp = safeStat(defender, 'hp', 0, 'まじめ');
-  const minPct = hp ? (min/hp*100) : 0;
-  const maxPct = hp ? (max/hp*100) : 0;
-  const hits = max<=0 ? '—' : (min>=hp ? '確1' : (min*2>=hp ? '確2圏内' : (min*3>=hp ? '3発圏内' : '4発以上')));
-
-  return {status:'ok', move:mv, power, stab, eff, itemMod, min, max, minPct, maxPct, hp, hits};
-}
-
-function renderDamagePanel(my, myName, cfg, opp, oppName){
-  const moves = (cfg?.moves||[]).filter(Boolean);
-  if(!moves.length){
-    return `<div class="damage-title">ダメージ計算</div><div class="damage-sub">技を設定すると、${oppName} へのダメージ目安を表示します。</div>`;
-  }
-  const rows = moves.map(moveName=>{
-    const r = calcMoveDamageRange(my, myName, cfg, opp, oppName, moveName);
-    if(r.status==='notfound'){
-      return `<div class="damage-row"><div class="damage-move"><span class="damage-move-name">${moveName}</span><span class="damage-bad">DB未登録</span></div><div class="damage-meta-line">movesDB に技情報がありません。</div></div>`;
-    }
-    if(r.status==='status'){
-      return `<div class="damage-row"><div class="damage-move"><span class="damage-move-name">${moveName}</span><span class="damage-good">変化技</span></div><div class="damage-meta-line">ダメージは発生しません。</div></div>`;
-    }
-    if(r.status==='variable'){
-      return `<div class="damage-row"><div class="damage-move"><span class="damage-move-name">${moveName}</span><span class="damage-good">威力可変</span></div><div class="damage-meta-line">${r.move.type} / ${r.move.category} ・この版では自動計算対象外</div></div>`;
-    }
-    return `<div class="damage-row">
-      <div class="damage-move">
-        <span class="damage-move-name">${moveName}</span>
-        <span class="tag bg-${r.move.type}">${r.move.type}</span>
-      </div>
-      <div class="damage-meta-line">威力 ${r.power} / ${r.move.category} / STAB×${r.stab} / 相性×${r.eff}${r.itemMod!==1?` / 持ち物×${r.itemMod}`:''}</div>
-      <div class="damage-meta-line"><span class="damage-kill">${r.min}〜${r.max}</span> ダメージ（${r.minPct.toFixed(1)}〜${r.maxPct.toFixed(1)}%） / ${r.hits}</div>
-    </div>`;
-  }).join('');
-  return `<div class="damage-title">ダメージ計算（目安）</div><div class="damage-sub">${myName} → ${oppName} / Lv50・相手は無補正EP0想定</div>${rows}`;
-}
-
-function renderOppSide(p, name) {
+function renderOppSide(p, name, cfg) {
   const stats=p.stats||{};
+  const nature = cfg?cfg.nature:'まじめ';
+  const evs = cfg?cfg.evs:{hp:0,atk:0,def:0,spA:0,spD:0,spe:0};
+  const nat = NATURES[nature]||{b:null,d:null};
   const statRows = STAT_KEYS.map(k=>{
-    const base=stats[k]||0, actual=calcStat(base,k,0,'まじめ');
+    const base=stats[k]||0, actual=calcStat(base,k,evs[k]||0,nature);
+    let cls='', mark='';
+    if(k!=='hp'){if(nat.b===k){cls='nat-up';mark='↑';}else if(nat.d===k){cls='nat-down';mark='↓';}}
+    const epBadge=(evs[k]||0)>0?`<span class="stat-ep-badge">EP${evs[k]}</span>`:'';
     return `<div class="stat-row">
       <span class="stat-label">${STAT_LABELS[k]}</span>
       <span class="stat-base">${base}</span>
       <span class="stat-arrow">→</span>
-      <span class="stat-actual">${actual}</span>
+      <span class="stat-actual ${cls}">${actual}${mark}</span>${epBadge}
     </div>`;
   }).join('');
   const typeBadges=(p.types||[]).map(t=>`<span class="type-badge type-${t}">${t}</span>`).join('');
+  const item = cfg?.item || '';
+  const natLabel = nat.b ? `${nature}（${STAT_LABELS[nat.b]}↑${STAT_LABELS[nat.d]}↓）` : `${nature}（無補正）`;
+  const itemHTML = item ? `<div class="moves-box"><div class="moves-title">持ち物</div><span class="tag" style="border-color:var(--green)">${item}</span></div>` : '';
   const abHTML=(p.abilities||[]).length?`<div class="moves-box"><div class="moves-title">特性 / 注意技</div>${(p.abilities||[]).map(a=>`<span class="tag" style="border-color:var(--yellow)">${a}</span>`).join('')}${(p.warningMoves||[]).map(m=>`<span class="tag">${m}</span>`).join('')}</div>`:'';
 
   return `
@@ -946,14 +857,111 @@ function renderOppSide(p, name) {
       <div class="pokemon-info">
         <div class="side-title" style="color:var(--red)">${name}</div>
         <div class="type-badges">${typeBadges}</div>
-        <div class="nature-label">補正なし（EP:0）</div>
+        <div class="nature-label">${natLabel}</div>
       </div>
     </div>
     <div class="stats-section">
       <div class="stat-category">種族値 → 実数値 (Lv50)</div>
       ${statRows}
     </div>
-    ${abHTML}`;
+    ${itemHTML}${abHTML}`;
+}
+
+function getEffectiveTypesForMove(moveName, moveData, attackerName, attackerData) {
+  if(moveName === 'テラバースト') return attackerData.types || ['ノーマル'];
+  return [moveData?.type || 'ノーマル'];
+}
+
+function calcItemModifier(item, moveData, atkKey) {
+  if(!item) return 1;
+  if(item === 'いのちのたま') return 1.3;
+  if(item === 'こだわりハチマキ' && atkKey === 'atk') return 1.5;
+  if(item === 'こだわりメガネ' && atkKey === 'spA') return 1.5;
+  const typeBoostMap = {
+    'くろおび':'かくとう','くろいメガネ':'あく','もくたん':'ほのお','りゅうのキバ':'ドラゴン',
+    'ようせいのハネ':'フェアリー','かたいいし':'いわ','じしゃく':'でんき','メタルコート':'はがね',
+    'きせきのタネ':'くさ','しんぴのしずく':'みず','とけないこおり':'こおり','どくバリ':'どく',
+    'するどいくちばし':'ひこう','シルクのスカーフ':'ノーマル','ぎんのこな':'むし','やわらかいすな':'じめん',
+    'のろいのおふだ':'ゴースト','まがったスプーン':'エスパー'
+  };
+  if(typeBoostMap[item] && moveData?.type === typeBoostMap[item]) return 1.2;
+  return 1;
+}
+
+function getAttackDefenseKeys(moveData){
+  if(!moveData) return null;
+  const cat = moveData.category || moveData.cat;
+  if(cat === '物理') return {atk:'atk', def:'def'};
+  if(cat === '特殊') return {atk:'spA', def:'spD'};
+  return null;
+}
+
+function calcOneDamage(moveName, moveData, attacker, attackerCfg, defender, defenderCfg){
+  const keys = getAttackDefenseKeys(moveData);
+  if(!moveData || !keys || moveData.power === null || moveData.power === undefined) return null;
+
+  const atkNature = attackerCfg?.nature || 'まじめ';
+  const defNature = defenderCfg?.nature || 'まじめ';
+  const atkEvs = attackerCfg?.evs || {hp:0,atk:0,def:0,spA:0,spD:0,spe:0};
+  const defEvs = defenderCfg?.evs || {hp:0,atk:0,def:0,spA:0,spD:0,spe:0};
+  const atkStats = attacker.stats || {};
+  const defStats = defender.stats || {};
+
+  const atkStat = calcStat(atkStats[keys.atk]||0, keys.atk, atkEvs[keys.atk]||0, atkNature);
+  const defStat = calcStat(defStats[keys.def]||0, keys.def, defEvs[keys.def]||0, defNature);
+  const hpStat = calcStat(defStats.hp||0, 'hp', defEvs.hp||0, defNature);
+
+  let stab = 1;
+  const moveTypes = getEffectiveTypesForMove(moveName, moveData, attacker.name, attacker);
+  if((attacker.types || []).some(t => moveTypes.includes(t))) stab = 1.5;
+
+  let typeEffect = 1;
+  moveTypes.forEach(mt => {
+    typeEffect = Math.max(typeEffect, getEff(mt, defender.types || []));
+  });
+
+  const base = Math.floor(Math.floor((22 * moveData.power * Math.max(1, atkStat) / Math.max(1, defStat)) / 50) + 2);
+  const modifier = stab * typeEffect * calcItemModifier(attackerCfg?.item || '', moveData, keys.atk);
+  const min = Math.max(1, Math.floor(base * modifier * 0.85));
+  const max = Math.max(1, Math.floor(base * modifier));
+  const pmin = Math.floor(min / hpStat * 1000) / 10;
+  const pmax = Math.floor(max / hpStat * 1000) / 10;
+  let ko = '乱数圏';
+  if(min >= hpStat) ko = '確定1発';
+  else if(max >= hpStat) ko = '乱数1発';
+  else if(min * 2 >= hpStat) ko = '確定2発';
+  else if(max * 2 >= hpStat) ko = '乱数2発';
+  else if(min * 3 >= hpStat) ko = '確定3発';
+  else if(max * 3 >= hpStat) ko = '乱数3発';
+
+  return {min, max, pmin, pmax, ko, typeEffect, hpStat};
+}
+
+function renderDamageCalc(myData, myName, myCfg, oppData, oppName, oppCfg){
+  const moves = (myCfg?.moves || []).filter(Boolean);
+  if(!moves.length) return `<div class="damage-empty">自分側に設定された攻撃技がありません。</div>`;
+
+  const rows = moves.map(moveName => {
+    const moveData = movesDB[moveName];
+    if(!moveData) return `<div class="damage-row"><div class="damage-name">${moveName}</div><div class="damage-meta">技データなし</div></div>`;
+    if(moveData.category === '変化' || moveData.power === null || moveData.power === undefined){
+      return `<div class="damage-row"><div class="damage-head"><div class="damage-name">${moveName}</div><div class="damage-meta">${moveData.type || ''} / ${moveData.category || ''}</div></div><div class="damage-empty">変化技・威力可変技のため数値計算対象外</div></div>`;
+    }
+    const res = calcOneDamage(moveName, moveData, myData, myCfg, oppData, oppCfg);
+    if(!res) return `<div class="damage-row"><div class="damage-name">${moveName}</div><div class="damage-meta">計算不可</div></div>`;
+    const width = Math.min(100, res.pmax);
+    return `<div class="damage-row">
+      <div class="damage-head">
+        <div class="damage-name">${moveName}</div>
+        <div class="damage-meta">${moveData.type} / ${moveData.category} / 威力${moveData.power} / 相性${res.typeEffect}x</div>
+      </div>
+      <div class="damage-values">${res.min}〜${res.max} <span style="font-size:11px;color:var(--muted)">(${res.pmin}%〜${res.pmax}%)</span></div>
+      <div class="damage-bar"><div class="damage-fill" style="width:${width}%"></div></div>
+      <div class="damage-ko">${res.ko}</div>
+    </div>`;
+  }).join('');
+
+  return rows;
 }
 
 // ── Analyze ────────────────────────────────────────────────────
@@ -991,15 +999,40 @@ function analyze() {
 
 // ── Save / Load ────────────────────────────────────────────────
 function quickSaveTeam(){
-  const t=[];
-  for(let i=1;i<=6;i++) t.push(document.getElementById('opp'+i).value);
-  localStorage.setItem('pk_team_opp',JSON.stringify(t));
+  const names=[];
+  const configs={};
+  for(let i=1;i<=6;i++){
+    names.push(document.getElementById('opp'+i).value);
+    configs[i]={nature:oppConfig[i].nature,evs:{...oppConfig[i].evs},moves:[...oppConfig[i].moves],item:oppConfig[i].item||''};
+  }
+  localStorage.setItem('pk_team_opp',JSON.stringify({names,configs}));
   showToast('相手チームを保存しました！');
 }
 function quickLoadTeam(){
   const s=localStorage.getItem('pk_team_opp');
-  if(s){JSON.parse(s).forEach((v,i)=>document.getElementById('opp'+(i+1)).value=v);showToast('読み込みました！');analyze();}
-  else showToast('保存されたチームがありません','error');
+  if(!s){ showToast('保存されたチームがありません','error'); return; }
+  try{
+    const data=JSON.parse(s);
+    const names = Array.isArray(data) ? data : (data.names || []);
+    names.forEach((v,i)=>document.getElementById('opp'+(i+1)).value=v||'');
+    const configs = Array.isArray(data) ? null : data.configs;
+    if(configs){
+      Object.keys(configs).forEach(k=>{
+        const slot=parseInt(k);
+        if(oppConfig[slot]&&configs[k]){
+          oppConfig[slot]={
+            nature:configs[k].nature||'まじめ',
+            evs:{...(configs[k].evs||{hp:0,atk:0,def:0,spA:0,spD:0,spe:0})},
+            moves:[...(configs[k].moves||['','','',''])],
+            item:configs[k].item||''
+          };
+          updateCfgBtn(slot,'opp');
+        }
+      });
+    }
+    showToast('読み込みました！');
+    analyze();
+  }catch(e){ showToast('読み込みに失敗しました','error'); }
 }
 
 function openSaveModal(){
@@ -1063,7 +1096,7 @@ function loadFromSlot(n){
             moves:[...(d.configs[k].moves||['','','',''])],
             item:d.configs[k].item||''
           };
-          updateCfgBtn(slot);
+          updateCfgBtn(slot,'my');
         }
       });
     }
@@ -1105,12 +1138,6 @@ fetch('pokemon-db.json')
       .catch(()=>{});
   })
   .catch(()=>alert('pokemon-db.json が見つかりません。同じフォルダに配置してください。'));
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
-  });
-}
 </script>
 </body>
 </html>
