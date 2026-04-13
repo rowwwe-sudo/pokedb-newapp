@@ -58,6 +58,7 @@ td:hover{transform:scale(1.05);box-shadow:0 0 12px rgba(227,53,13,.3)}
 .detail-card{display:none;background:var(--surface2);border-radius:12px;padding:20px;border:1px solid var(--yellow);margin-top:20px;animation:fadeIn .3s}
 .compare-grid{display:grid;grid-template-columns:1fr 50px 1fr;gap:12px;align-items:start}
 @media(max-width:540px){.compare-grid{grid-template-columns:1fr}.vs-label{display:none}}
+@media(max-width:640px){#ai-container>div:nth-child(2){grid-template-columns:1fr!important}}
 .pokemon-detail{background:var(--surface);border-radius:8px;padding:14px}
 .pokemon-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .pokemon-icon{width:64px;height:64px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);flex-shrink:0;overflow:hidden}
@@ -164,20 +165,6 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 .cfg-submit-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-weight:900;font-size:14px;cursor:pointer;transition:all .2s;margin-top:6px}
 .cfg-submit-btn:hover{background:#1558b0}
 
-
-.ai-card{display:none;background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid var(--border)}
-.ai-title{font-weight:900;font-size:14px;color:var(--green);margin-bottom:10px}
-.ai-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
-.ai-picks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.ai-pick{padding:6px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--green);font-weight:700}
-.ai-reasons{font-size:12px;line-height:1.6;color:var(--text);white-space:pre-line}
-.damage-panel{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
-.damage-title{font-size:10px;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-.damage-line{font-size:11px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
-.damage-line strong{color:var(--yellow)}
-.damage-move{font-weight:700}
-.damage-note{font-size:10px;color:var(--muted)}
-
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideIn{from{opacity:0;transform:translateX(100px)}to{opacity:1;transform:translateX(0)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
@@ -219,25 +206,15 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 
   <button class="analyze-btn" onclick="analyze()">分析開始</button>
 
-  <div id="ai-card" class="ai-card">
-    <div class="ai-title">おすすめ選出</div>
-    <div class="ai-sub">相手6体からタイプ相性・一貫・基本役割を見て、3体の候補と理由を出します。</div>
-    <div id="ai-picks" class="ai-picks"></div>
-    <div id="ai-reasons" class="ai-reasons"></div>
-  </div>
-
   <div id="result-area" style="display:none">
     <p style="font-size:11px;color:var(--muted);margin-bottom:8px">※セルをクリックして詳細対面を表示</p>
+    <div class="matrix-card" id="ai-container" style="margin-bottom:12px"></div>
     <div class="matrix-card" id="matrix-container"></div>
     <div id="detail-card" class="detail-card">
       <div class="compare-grid">
         <div id="my-detail" class="pokemon-detail"></div>
         <div class="vs-label">VS</div>
         <div id="opp-detail" class="pokemon-detail"></div>
-      </div>
-      <div id="damage-panel" class="damage-panel" style="display:none">
-        <div class="damage-title">ダメージ計算</div>
-        <div id="damage-output"></div>
       </div>
     </div>
   </div>
@@ -337,188 +314,6 @@ function calcStat(base, key, ep, nature) {
   const nat = NATURES[nature] || {b:null,d:null};
   const mod = nat.b === key ? 1.1 : nat.d === key ? 0.9 : 1.0;
   return Math.floor((inner + 5) * mod);
-}
-
-function getActualStats(poke, cfg){
-  const stats = poke?.stats || {};
-  const nature = cfg?.nature || 'まじめ';
-  const evs = cfg?.evs || {hp:0,atk:0,def:0,spA:0,spD:0,spe:0};
-  return {
-    hp: calcStat(stats.hp||0,'hp',evs.hp||0,nature),
-    atk: calcStat(stats.atk||0,'atk',evs.atk||0,nature),
-    def: calcStat(stats.def||0,'def',evs.def||0,nature),
-    spA: calcStat(stats.spA||0,'spA',evs.spA||0,nature),
-    spD: calcStat(stats.spD||0,'spD',evs.spD||0,nature),
-    spe: calcStat(stats.spe||0,'spe',evs.spe||0,nature),
-  };
-}
-
-function getMoveEffectiveness(moveType, defTypes){
-  if(!moveType || !defTypes) return 1;
-  return defTypes.reduce((r,t)=>{
-    if(CHART[moveType] && CHART[moveType][t] !== undefined) return r * CHART[moveType][t];
-    return r;
-  },1);
-}
-
-function getSTAB(moveType, atkTypes){
-  return atkTypes && atkTypes.includes(moveType) ? 1.5 : 1;
-}
-
-function getItemModifier(item, move, isPhysical){
-  if(!item) return 1;
-  if(item === 'いのちのたま') return 1.3;
-  if(item === 'こだわりハチマキ' && isPhysical) return 1.5;
-  if(item === 'こだわりメガネ' && !isPhysical) return 1.5;
-  const typeBoostMap = {
-    'くろおび':'かくとう','くろいメガネ':'あく','もくたん':'ほのお','りゅうのキバ':'ドラゴン',
-    'ようせいのハネ':'フェアリー','かたいいし':'いわ','じしゃく':'でんき','メタルコート':'はがね',
-    'きせきのタネ':'くさ','しんぴのしずく':'みず','とけないこおり':'こおり','どくバリ':'どく',
-    'するどいくちばし':'ひこう','シルクのスカーフ':'ノーマル','ぎんのこな':'むし',
-    'やわらかいすな':'じめん','のろいのおふだ':'ゴースト','まがったスプーン':'エスパー'
-  };
-  if(typeBoostMap[item] && move?.type === typeBoostMap[item]) return 1.2;
-  return 1;
-}
-
-function calcDamageRange(myPoke, oppPoke, myCfg, moveName){
-  const move = movesDB[moveName];
-  if(!move) return null;
-  if(!move.power) return {moveName, note:'変化技', eff:getMoveEffectiveness(move.type, oppPoke.types||[])};
-  const atkStats = getActualStats(myPoke, myCfg);
-  const oppStats = getActualStats(oppPoke, null);
-  const isPhysical = move.category === '物理';
-  const A = isPhysical ? atkStats.atk : atkStats.spA;
-  const D = isPhysical ? oppStats.def : oppStats.spD;
-  const stab = getSTAB(move.type, myPoke.types||[]);
-  const eff = getMoveEffectiveness(move.type, oppPoke.types||[]);
-  const itemMod = getItemModifier(myCfg?.item || '', move, isPhysical);
-  let base = Math.floor(Math.floor(Math.floor((22 * move.power * A / Math.max(1,D)) / 50) + 2));
-  let mod = stab * eff * itemMod;
-  let min = Math.floor(base * mod * 0.85);
-  let max = Math.floor(base * mod);
-  const hp = oppStats.hp;
-  const pctMin = hp ? ((min / hp) * 100).toFixed(1) : '0.0';
-  const pctMax = hp ? ((max / hp) * 100).toFixed(1) : '0.0';
-  let ko = '乱数圏';
-  if(max >= hp) ko = min >= hp ? '確定1発' : '乱数1発';
-  else if(max * 2 >= hp) ko = min * 2 >= hp ? '確定2発' : '乱数2発';
-  else if(max * 3 >= hp) ko = min * 3 >= hp ? '確定3発' : '乱数3発';
-  return {moveName, min, max, pctMin, pctMax, ko, eff, category:move.category, power:move.power};
-}
-
-function renderDamagePanel(myName, oppName){
-  const myPoke = DB[myName], oppPoke = DB[oppName];
-  const slot = getMySlot(myName);
-  const cfg = slot ? myConfig[slot] : null;
-  const panel = document.getElementById('damage-panel');
-  const output = document.getElementById('damage-output');
-  if(!myPoke || !oppPoke || !cfg){ panel.style.display='none'; return; }
-  const moves = (cfg.moves || []).filter(Boolean);
-  if(!moves.length){ panel.style.display='none'; return; }
-  const rows = moves.map(m=>{
-    const r = calcDamageRange(myPoke, oppPoke, cfg, m);
-    if(!r) return '';
-    if(r.note){
-      return `<div class="damage-line"><span class="damage-move">${m}</span> <span class="damage-note">(${r.note} / ${r.eff}x)</span></div>`;
-    }
-    return `<div class="damage-line"><span class="damage-move">${m}</span> <strong>${r.min}〜${r.max}</strong> <span class="damage-note">(${r.pctMin}%〜${r.pctMax}% / ${r.ko} / ${r.eff}x)</span></div>`;
-  }).join('');
-  output.innerHTML = rows || '<div class="damage-note">技が未設定です。</div>';
-  panel.style.display = 'block';
-}
-
-function getTypeAttackScore(myName, oppName){
-  const my = DB[myName], opp = DB[oppName];
-  if(!my || !opp) return 0;
-  let best = 0;
-  (my.types||[]).forEach(t=>{
-    best = Math.max(best, getMoveEffectiveness(t, opp.types||[]));
-  });
-  return best;
-}
-
-function getTypeDefensePenalty(myName, oppName){
-  const my = DB[myName], opp = DB[oppName];
-  if(!my || !opp) return 0;
-  let worst = 1;
-  (opp.types||[]).forEach(t=>{
-    worst = Math.max(worst, getMoveEffectiveness(t, my.types||[]));
-  });
-  if(worst >= 4) return 2.5;
-  if(worst >= 2) return 1.2;
-  return 0;
-}
-
-function roleHint(name){
-  const poke = DB[name];
-  if(!poke) return [];
-  const s = poke.stats || {};
-  const hints = [];
-  if((s.spe||0) >= 110) hints.push('高速アタッカー');
-  if((s.hp||0)+(s.def||0)+(s.spD||0) >= 280) hints.push('クッション気味');
-  if((s.atk||0) >= 120) hints.push('物理圧力');
-  if((s.spA||0) >= 120) hints.push('特殊圧力');
-  if((poke.types||[]).includes('ゴースト')) hints.push('ノーマル無効');
-  if((poke.types||[]).includes('はがね')) hints.push('耐性多め');
-  return hints;
-}
-
-function suggestSelection(){
-  const my = [], opp = [];
-  for(let i=1;i<=6;i++){
-    const a = document.getElementById('my'+i).value.trim();
-    const b = document.getElementById('opp'+i).value.trim();
-    if(DB[a]) my.push(a);
-    if(DB[b]) opp.push(b);
-  }
-  const card = document.getElementById('ai-card');
-  const picksEl = document.getElementById('ai-picks');
-  const reasonsEl = document.getElementById('ai-reasons');
-  if(!my.length || !opp.length){
-    card.style.display = 'none';
-    return;
-  }
-  const scored = my.map(name=>{
-    let score = 0;
-    let strong = 0;
-    let weak = 0;
-    opp.forEach(en=>{
-      const atk = getTypeAttackScore(name, en);
-      const pen = getTypeDefensePenalty(name, en);
-      score += atk * 2 - pen;
-      if(atk >= 2) strong++;
-      if(pen >= 1.2) weak++;
-    });
-    score += roleHint(name).length * 0.25;
-    return {name, score, strong, weak, hints: roleHint(name)};
-  }).sort((a,b)=>b.score-a.score);
-
-  const picks = scored.slice(0,3);
-  picksEl.innerHTML = picks.map(p=>`<div class="ai-pick">${p.name}</div>`).join('');
-
-  const reasons = [];
-  picks.forEach((p, idx)=>{
-    const base = `${idx+1}. ${p.name}: 有利対面 ${p.strong} / 不利寄り ${p.weak}`;
-    const hint = p.hints.length ? `（${p.hints.slice(0,2).join('・')}）` : '';
-    reasons.push(base + hint);
-  });
-
-  const enemyTypes = opp.flatMap(n => DB[n]?.types || []);
-  const typeCount = {};
-  enemyTypes.forEach(t=>typeCount[t]=(typeCount[t]||0)+1);
-  Object.entries(typeCount).forEach(([t,c])=>{
-    if(c >= 2) reasons.push(`・相手は ${t} を ${c}体 採用。${t} に強い駒を優先。`);
-  });
-
-  const groundWeakTargets = opp.filter(n => {
-    const types = DB[n]?.types || [];
-    return types.includes('でんき') || types.includes('ほのお') || types.includes('どく') || types.includes('いわ') || types.includes('はがね');
-  });
-  if(groundWeakTargets.length >= 2) reasons.push('・じめん打点が通りやすい並びです。');
-
-  reasonsEl.textContent = reasons.join('\n');
-  card.style.display = 'block';
 }
 
 // ── Type chart ────────────────────────────────────────────────
@@ -944,7 +739,6 @@ function showDetail(myName, oppName) {
   const cfg = slot ? myConfig[slot] : null;
   document.getElementById('my-detail').innerHTML = renderMySide(my, myName, cfg);
   document.getElementById('opp-detail').innerHTML = renderOppSide(opp, oppName);
-  renderDamagePanel(myName, oppName);
   const dc = document.getElementById('detail-card');
   dc.style.display='block';
   dc.scrollIntoView({behavior:'smooth'});
@@ -1040,6 +834,77 @@ function getEff(at, defTypes) {
   return r;
 }
 
+function getOffenseScore(myName, oppName){
+  const my=DB[myName], opp=DB[oppName];
+  if(!my||!opp) return 0;
+  let best=0;
+  (my.types||[]).forEach(at=>{
+    const e=getEff(at, opp.types||[]);
+    if(e>best) best=e;
+  });
+  return best;
+}
+
+function getDefensePenalty(myName, oppName){
+  const my=DB[myName], opp=DB[oppName];
+  if(!my||!opp) return 0;
+  let worst=0;
+  (opp.types||[]).forEach(at=>{
+    const e=getEff(at, my.types||[]);
+    if(e>worst) worst=e;
+  });
+  if(worst>=4) return 3.0;
+  if(worst>=2) return 1.5;
+  if(worst<=0.5) return -0.5;
+  return 0;
+}
+
+function buildAISuggestions(myNames, oppNames){
+  const scored = myNames.map(name=>{
+    let offense=0, defense=0, strongInto=[];
+    oppNames.forEach(opp=>{
+      const s=getOffenseScore(name, opp);
+      offense += s;
+      defense += getDefensePenalty(name, opp);
+      if(s>=2) strongInto.push(opp);
+    });
+    const p = DB[name]||{};
+    const speed = p.stats?.spe || 0;
+    const bulk = (p.stats?.hp||0)+(p.stats?.def||0)+(p.stats?.spD||0);
+    const bonus = (speed>=100?0.4:0) + (bulk>=280?0.3:0);
+    const total = offense - defense + bonus;
+    return {name,total,offense,defense,strongInto, speed, bulk};
+  }).sort((a,b)=>b.total-a.total);
+
+  const top = scored.slice(0,3);
+  const reasons = [];
+  const oppData = oppNames.map(n=>DB[n]).filter(Boolean);
+  const weakToGround = oppData.filter(p=>getEff('じめん', p.types||[])>=2).length;
+  const weakToFairy = oppData.filter(p=>getEff('フェアリー', p.types||[])>=2).length;
+  const weakToIce = oppData.filter(p=>getEff('こおり', p.types||[])>=2).length;
+  if(weakToGround>=2) reasons.push('相手にじめん打点が通りやすいです');
+  if(weakToFairy>=2) reasons.push('相手にフェアリー打点が通りやすいです');
+  if(weakToIce>=2) reasons.push('相手にこおり打点が通りやすいです');
+  if(!reasons.length) reasons.push('タイプ相性と種族値傾向から安定しやすい3体です');
+
+  const cards = top.map((x,i)=>{
+    const detail = [];
+    if(x.strongInto.length) detail.push(`有利候補: ${x.strongInto.slice(0,3).join(' / ')}`);
+    if(x.speed>=100) detail.push('素早さが高め');
+    if(x.bulk>=280) detail.push('数値受けしやすい');
+    if(!detail.length) detail.push('等倍範囲が広い');
+    return `<div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)"><div style="font-weight:900;color:var(--yellow);margin-bottom:4px">${i+1}位 ${x.name}</div><div style="font-size:11px;color:var(--muted)">${detail.join(' / ')}</div></div>`;
+  }).join('');
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="font-weight:900;color:var(--yellow)">おすすめ選出</div>
+      <div style="font-size:11px;color:var(--muted)">※タイプ相性・一貫・種族値傾向ベース</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">${cards}</div>
+    <div style="font-size:12px;line-height:1.7"><span style="font-weight:700;color:var(--blue)">理由:</span> ${reasons.join(' / ')}</div>`;
+}
+
 function analyze() {
   const my=[], opp=[];
   for(let i=1;i<=6;i++){
@@ -1064,7 +929,7 @@ function analyze() {
   });
   html+='</table>';
   document.getElementById('matrix-container').innerHTML=html;
-  suggestSelection();
+  document.getElementById('ai-container').innerHTML = buildAISuggestions(my.map(p=>p.name), opp.map(p=>p.name));
 }
 
 // ── Save / Load ────────────────────────────────────────────────
