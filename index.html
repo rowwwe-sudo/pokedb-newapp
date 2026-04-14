@@ -223,6 +223,7 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 <div class="header">
   <div class="header-title">POKÉMON CHAMPIONS</div>
   <div class="header-actions">
+    <span id="db-status" style="font-size:10px;color:var(--muted)">DB読込中...</span>
     <button class="action-btn" onclick="clearAll()" style="padding:6px 12px;font-size:12px">🗑 クリア</button>
   </div>
   </div>
@@ -1224,26 +1225,20 @@ function buildMetaAdvice(my, opp){
   const stats=partyMeta.pokemon_stats||{};
   const lines=[];
 
-  lines.push('■ 相手の型予測（実際の構築データより）');
+  lines.push('■ 相手の型予測（メタデータ基準）');
   opp.forEach(name=>{
     const s=stats[name];
     if(!s){ lines.push(`・${name}：データなし`); return; }
-    const pct=s.usage_pct!=null?` 使用率${s.usage_pct}%（${s.usage}件）`:'';
-    lines.push(`・${name}${pct}`);
-    if(s.common_nature) lines.push(`  性格: ${s.common_nature}`);
+    const usagePct=s.usage_pct!=null?` 使用率${s.usage_pct}%`:'';
+    lines.push(`・${name}${usagePct}`);
+    if((s.common_nature||'')!=='') lines.push(`  性格: ${s.common_nature}`);
     if(s.common_moves&&s.common_moves.length) lines.push(`  技: ${s.common_moves.slice(0,4).join(' / ')}`);
     if(s.common_items&&s.common_items.length) lines.push(`  持物: ${s.common_items.slice(0,2).join(' / ')}`);
-    if(s.avg_ep){
-      const ep=s.avg_ep;
-      const epStr=Object.entries({H:'hp',A:'atk',B:'def',C:'spA',D:'spD',S:'spe'})
-        .filter(([,k])=>ep[k]>0).map(([l,k])=>`${l}:${ep[k]}`).join(' / ');
-      if(epStr) lines.push(`  EP平均: ${epStr}`);
-    }
-    if(s.notes) lines.push(`  ⚠ ${s.notes}`);
+    if(s.notes) lines.push(`  注意: ${s.notes}`);
   });
 
   lines.push('');
-  lines.push('■ 対策候補（タイプ相性より）');
+  lines.push('■ 対策ポケモン（メタデータより）');
   const counterScore={};
   opp.forEach(name=>{
     const s=stats[name];
@@ -1254,26 +1249,23 @@ function buildMetaAdvice(my, opp){
   if(topCounters.length){
     topCounters.forEach(([name,cnt])=>{
       const inMy=my.includes(name);
-      lines.push(`・${name}（相手${cnt}体に有効）${inMy?' ✓ 自分のパーティあり':''}`);
+      lines.push(`・${name}（${cnt}体に有効）${inMy?' ← 自分のパーティにあり ✓':''}`);
     });
   } else {
-    lines.push('・カウンターデータなし');
+    lines.push('・カウンターデータなし（party-meta.jsonに counters フィールドを追加してください）');
   }
 
   lines.push('');
-  lines.push('■ 相手パーティの採用率');
-  const maxUsage=Math.max(...opp.map(n=>stats[n]?.usage||0), 1);
-  opp.forEach(n=>{
-    const u=stats[n]?.usage||0;
-    const bar='█'.repeat(Math.min(10,Math.round(u/maxUsage*10)));
-    const pct=stats[n]?.usage_pct||0;
-    lines.push(`・${n}  ${bar||'░░░░░░░░░░'} ${u?`${u}件(${pct}%)`:'データなし'}`);
+  lines.push('■ 相手パーティの使用率上位');
+  const sorted=opp
+    .map(n=>({name:n, usage:stats[n]?.usage||0}))
+    .sort((a,b)=>b.usage-a.usage);
+  sorted.forEach(x=>{
+    const bar='█'.repeat(Math.min(10,Math.round((x.usage/Math.max(...sorted.map(s=>s.usage)||[1]))*10)));
+    lines.push(`・${x.name}  ${bar} ${x.usage?x.usage+'件':'データなし'}`);
   });
 
-  lines.push('');
-  lines.push(`─ データ: ${partyMeta.total_parties||'?'}パーティ集計 / 更新: ${partyMeta.updated||'?'} ─`);
-  body.textContent=lines.join('
-');
+  body.textContent=lines.join('\n');
 }
 
 function analyze() {
@@ -1397,38 +1389,37 @@ function loadFromSlot(n){
 }
 
 // ── Boot ───────────────────────────────────────────────────────
+// 入力欄は即座に表示（DBの読み込み完了を待たない）
+initInputs();
 loadPartyMeta();
+
+// DBを非同期で読み込み（失敗しても入力欄は残る）
 fetch('pokemon-db.json')
   .then(r=>{if(!r.ok)return fetch('pokemon-db-correct.json');return r;})
   .then(r=>r.json())
   .then(data=>{
     DB=data;
-    initInputs();
+    const statusEl=document.getElementById('db-status');
+    if(statusEl) statusEl.textContent='DB読込済 ✓';
     // moves-db.json を自動読み込み（失敗しても無視）
     fetch('moves-db.json')
       .then(r=>r.ok?r.json():null)
       .then(mdata=>{
-        if(mdata && typeof mdata==='object'){
-          movesDB = mdata;
-          const n = Object.keys(mdata).length;
-          
-        }
+        if(mdata && typeof mdata==='object') movesDB=mdata;
       })
       .catch(()=>{});
-
     // items_complete_pokemon_champions.json を自動読み込み（失敗しても無視）
     fetch('items_complete_pokemon_champions.json', {cache:'no-store'})
       .then(r=>r.ok?r.json():null)
       .then(idata=>{
-        if(idata && typeof idata==='object'){
-          itemsDB = idata;
-          const n = Object.keys(idata).length;
-          
-        }
+        if(idata && typeof idata==='object') itemsDB=idata;
       })
       .catch(()=>{});
   })
-  .catch(()=>alert('pokemon-db.json が見つかりません。同じフォルダに配置してください。'));
+  .catch(()=>{
+    const statusEl=document.getElementById('db-status');
+    if(statusEl){ statusEl.textContent='⚠ pokemon-db.json が見つかりません'; statusEl.style.color='#ff6060'; }
+  });
 </script>
 </body>
 </html>
