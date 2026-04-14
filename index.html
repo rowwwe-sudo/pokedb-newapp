@@ -195,7 +195,16 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 .apikey-status{font-size:10px;margin-top:2px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .ai-body.loading{animation:pulse 1.5s ease-in-out infinite;color:var(--muted);font-style:italic}
-.advice-title{font-size:14px;font-weight:900;color:var(--blue);margin-bottom:10px}
+.advice-title{font-size:14px;font-weight:900;color:var(--blue)}
+/* ── アコーディオン ── */
+.card-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;-webkit-user-select:none;gap:8px}
+.card-header:active{opacity:.7}
+.card-toggle{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 4px;line-height:1;transition:transform .25s,color .2s;flex-shrink:0}
+.card-toggle.open{transform:rotate(180deg);color:var(--text)}
+.card-body{overflow:hidden;transition:max-height .3s ease,opacity .25s ease}
+.card-body.collapsed{max-height:0!important;opacity:0;pointer-events:none}
+.card-body.expanded{opacity:1}
+
 .pick-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
 .pick-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px}
 .pick-rank{font-family:'Rajdhani';font-weight:900;color:var(--yellow);font-size:13px}
@@ -223,7 +232,6 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 <div class="header">
   <div class="header-title">POKÉMON CHAMPIONS</div>
   <div class="header-actions">
-    <span id="db-status" style="font-size:10px;color:var(--muted)">DB読込中...</span>
     <button class="action-btn" onclick="clearAll()" style="padding:6px 12px;font-size:12px">🗑 クリア</button>
   </div>
   </div>
@@ -254,35 +262,50 @@ input.move-input:focus{outline:none;border-color:var(--blue)}
 
 
     <div id="team-advice-card" class="advice-card" style="display:none">
-      <div class="advice-title">おすすめ選出 / 型予測 / 苦手警告</div>
-      <div id="advice-picks" class="pick-grid"></div>
-      <div style="margin-top:2px;margin-bottom:6px"><button class="action-btn" style="padding:8px 12px;font-size:12px" onclick="applySuggestedSelection()">おすすめ3体を選出メモに反映</button></div>
-      <div class="advice-section">
-        <div class="advice-subtitle">選出理由</div>
-        <div id="advice-reasons" class="advice-list"></div>
+      <div class="card-header" onclick="toggleCard('advice-body','advice-toggle')">
+        <div class="advice-title">おすすめ選出 / 型予測 / 苦手警告</div>
+        <button class="card-toggle open" id="advice-toggle">▽</button>
       </div>
-      <div class="advice-section">
-        <div class="advice-subtitle">苦手警告</div>
-        <div id="advice-warnings" class="advice-list"></div>
-      </div>
-      <div class="advice-section">
-        <div class="advice-subtitle">一貫 / 圧力の可視化</div>
-        <div id="advice-pressure" class="pressure-grid"></div>
+      <div id="advice-body" class="card-body expanded" style="max-height:2000px">
+        <div id="advice-picks" class="pick-grid" style="margin-top:10px"></div>
+        <div style="margin-top:2px;margin-bottom:6px"><button class="action-btn" style="padding:8px 12px;font-size:12px" onclick="applySuggestedSelection()">おすすめ3体を選出メモに反映</button></div>
+        <div class="advice-section">
+          <div class="advice-subtitle">選出理由</div>
+          <div id="advice-reasons" class="advice-list"></div>
+        </div>
+        <div class="advice-section">
+          <div class="advice-subtitle">苦手警告</div>
+          <div id="advice-warnings" class="advice-list"></div>
+        </div>
+        <div class="advice-section">
+          <div class="advice-subtitle">一貫 / 圧力の可視化</div>
+          <div id="advice-pressure" class="pressure-grid"></div>
+        </div>
       </div>
     </div>
 
     <div id="ai-advice-card" class="ai-advice-card" style="display:none">
-      <div class="ai-advice-header">
-        <div class="ai-advice-title">📊 構築メタ分析</div>
-        <span id="meta-status" style="font-size:10px;color:var(--muted)">データ未読込</span>
+      <div class="card-header" onclick="toggleCard('meta-body','meta-toggle')">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <div class="ai-advice-title">📊 構築メタ分析</div>
+          <span id="meta-status" style="font-size:10px;color:var(--muted)">データ未読込</span>
+        </div>
+        <button class="card-toggle" id="meta-toggle">▽</button>
       </div>
-      <div class="ai-body" id="ai-body">party-meta.json が見つかりません。同フォルダに配置するとここにメタ分析が表示されます。</div>
-      <div class="ai-disclaimer">※ party-meta.json（同フォルダ設置）から使用率・型情報を読み込んで分析します。APIキー不要・完全オフライン動作。</div>
+      <div id="meta-body" class="card-body collapsed" style="max-height:0">
+        <div class="ai-body" id="ai-body" style="margin-top:10px">party-meta.json が見つかりません。同フォルダに配置するとここにメタ分析が表示されます。</div>
+        <div class="ai-disclaimer">※ party-meta.json（同フォルダ設置）から使用率・型情報を読み込んで分析します。APIキー不要・完全オフライン動作。</div>
+      </div>
     </div>
 
     <div id="selected-memo-card" class="advice-card" style="display:none;margin-top:0;margin-bottom:16px;border-color:var(--yellow)">
-      <div class="advice-title" style="color:var(--yellow)">ワンタップ選出メモ</div>
-      <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。</div>
+      <div class="card-header" onclick="toggleCard('memo-body','memo-toggle')">
+        <div class="advice-title" style="color:var(--yellow)">ワンタップ選出メモ</div>
+        <button class="card-toggle open" id="memo-toggle" style="color:var(--yellow)">▽</button>
+      </div>
+      <div id="memo-body" class="card-body expanded" style="max-height:400px;margin-top:8px">
+        <div id="selected-memo-body" style="font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text)">まだ選出していません。</div>
+      </div>
     </div>
 
     <div id="detail-card" class="detail-card">
@@ -1182,6 +1205,46 @@ function scoreMatchup(myName, oppName){
   return score;
 }
 
+
+// ── アコーディオン ─────────────────────────────────────────────
+function toggleCard(bodyId, toggleId) {
+  const body = document.getElementById(bodyId);
+  const btn  = document.getElementById(toggleId);
+  if(!body) return;
+  const isOpen = !body.classList.contains('collapsed');
+  if(isOpen){
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(()=>{
+      body.style.maxHeight = '0';
+      body.classList.add('collapsed');
+      body.classList.remove('expanded');
+    });
+    if(btn){ btn.classList.remove('open'); }
+  } else {
+    body.classList.remove('collapsed');
+    body.classList.add('expanded');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    // transitionが終わったらmax-heightを解除（コンテンツ増加に対応）
+    body.addEventListener('transitionend', function onEnd(){
+      body.style.maxHeight = '2000px';
+      body.removeEventListener('transitionend', onEnd);
+    });
+    if(btn){ btn.classList.add('open'); }
+  }
+}
+
+// メタ分析を展開しつつ内容更新するヘルパー
+function openMetaCard(){
+  const body = document.getElementById('meta-body');
+  const btn  = document.getElementById('meta-toggle');
+  if(body && body.classList.contains('collapsed')){
+    body.classList.remove('collapsed');
+    body.classList.add('expanded');
+    body.style.maxHeight = '2000px';
+    if(btn) btn.classList.add('open');
+  }
+}
+
 function clearAll(){
   for(let i=1;i<=6;i++){
     const m=document.getElementById('my'+i); if(m) m.value='';
@@ -1282,6 +1345,7 @@ function analyze() {
   if(my.length && opp.length){
     document.getElementById('ai-advice-card').style.display='block';
     buildMetaAdvice(my.map(x=>x.name), opp.map(x=>x.name));
+    openMetaCard();
   }
 
   if(!my.length || !opp.length){
@@ -1389,37 +1453,38 @@ function loadFromSlot(n){
 }
 
 // ── Boot ───────────────────────────────────────────────────────
-// 入力欄は即座に表示（DBの読み込み完了を待たない）
-initInputs();
 loadPartyMeta();
-
-// DBを非同期で読み込み（失敗しても入力欄は残る）
 fetch('pokemon-db.json')
   .then(r=>{if(!r.ok)return fetch('pokemon-db-correct.json');return r;})
   .then(r=>r.json())
   .then(data=>{
     DB=data;
-    const statusEl=document.getElementById('db-status');
-    if(statusEl) statusEl.textContent='DB読込済 ✓';
+    initInputs();
     // moves-db.json を自動読み込み（失敗しても無視）
     fetch('moves-db.json')
       .then(r=>r.ok?r.json():null)
       .then(mdata=>{
-        if(mdata && typeof mdata==='object') movesDB=mdata;
+        if(mdata && typeof mdata==='object'){
+          movesDB = mdata;
+          const n = Object.keys(mdata).length;
+          
+        }
       })
       .catch(()=>{});
+
     // items_complete_pokemon_champions.json を自動読み込み（失敗しても無視）
     fetch('items_complete_pokemon_champions.json', {cache:'no-store'})
       .then(r=>r.ok?r.json():null)
       .then(idata=>{
-        if(idata && typeof idata==='object') itemsDB=idata;
+        if(idata && typeof idata==='object'){
+          itemsDB = idata;
+          const n = Object.keys(idata).length;
+          
+        }
       })
       .catch(()=>{});
   })
-  .catch(()=>{
-    const statusEl=document.getElementById('db-status');
-    if(statusEl){ statusEl.textContent='⚠ pokemon-db.json が見つかりません'; statusEl.style.color='#ff6060'; }
-  });
+  .catch(()=>alert('pokemon-db.json が見つかりません。同じフォルダに配置してください。'));
 </script>
 </body>
 </html>
